@@ -47,7 +47,7 @@ go run ./app            # in a second terminal: http://localhost:8020
 - **Open the site through Go**, on `localhost` or `127.0.0.1`, also in development.
 - **The git hooks.** `yarn exec lefthook install` installs them once, and [Checks](#checks) says what they run. They run the lefthook of `package.json`, never an older one on the `PATH`. Yarn runs no install scripts, so they never install themselves.
 - **The whole app in a container.** `docker compose up -d --build` runs it on `https://<APP_DOMAIN>`.
-- **Mailpit.** `docker compose up -d mailpit` catches the mails on `https://mail.<APP_DOMAIN>`.
+- **Mailpit.** `docker compose up -d mailpit` catches the mails on `https://mail.<APP_DOMAIN>`. Their links and images lead to `APP_URL`. With `go run`, set `APP_URL=http://localhost:8020` and open Mailpit on `http://mail.<APP_DOMAIN>`, because a page on HTTPS loads no images over HTTP.
 
 ## Repository
 
@@ -256,7 +256,7 @@ Every error goes out in one envelope. Its keys are the JSON path of a field (`em
 - A mail is a template in `views/mail/` that calls no layout. Its block `subject` is the subject.
 - `renderer.Mail(name, locale, origin, params)` renders it. The template gets only `.Locale`, `.Origin` and `.Params`. `.Origin` is `APP_URL`, because a mail may start outside a request.
 - The mail logo `assets/img/mail/mark.png` sits on an opaque tile, so it stays visible in dark mode.
-- Built images go out with `Cross-Origin-Resource-Policy: cross-origin`, so clients that load them in the browser show them.
+- Images under `/build/`, the built ones and those of the Vite proxy, go out with `Cross-Origin-Resource-Policy: cross-origin`, so clients that load them in the browser show them.
 
 **Sending.**
 - `mail.Mailer` renders a template in the recipient's locale and sends it within 3 s, through `mail.Sender`.
@@ -397,7 +397,7 @@ It also writes a sample of numbers to `tests/assets/i18n/numbers`, against which
 | `Content-Security-Policy` | see below |
 | `Strict-Transport-Security` | `max-age=63072000; includeSubDomains; preload` |
 | `Cross-Origin-Opener-Policy` | `same-origin` |
-| `Cross-Origin-Resource-Policy` | `same-origin`; `cross-origin` for the built images, for mails |
+| `Cross-Origin-Resource-Policy` | `same-origin`; `cross-origin` for the images under `/build/`, for mails |
 | `Permissions-Policy` | no camera, microphone, geolocation, screen sharing, payment, USB or sensors |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` |
 | `X-Content-Type-Options` | `nosniff` |

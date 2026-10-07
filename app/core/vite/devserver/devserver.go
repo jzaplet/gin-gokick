@@ -3,10 +3,13 @@ package devserver
 import (
 	"context"
 	"log/slog"
+	"mime"
 	"net/http"
 	"net/http/httputil"
 	"net/netip"
 	"net/url"
+	"path"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -57,6 +60,10 @@ func (s *Server) serve(c *gin.Context) {
 		c.AbortWithStatus(http.StatusForbidden)
 
 		return
+	}
+
+	if strings.HasPrefix(mime.TypeByExtension(path.Ext(c.Param("filepath"))), "image/") {
+		c.Header("Cross-Origin-Resource-Policy", "cross-origin")
 	}
 
 	s.proxy.ServeHTTP(c.Writer, c.Request.WithContext(context.WithoutCancel(c.Request.Context())))

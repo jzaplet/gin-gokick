@@ -6,12 +6,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"gokick/app/core/csp"
 	"gokick/app/core/middleware"
 	"gokick/app/core/testkit"
 	"gokick/app/core/vite/devserver"
@@ -39,6 +41,24 @@ func TestTheDevProxyServesOnlyLocalClients(t *testing.T) {
 
 	if res := testkit.Serve(engine, req); res.Code != http.StatusForbidden {
 		t.Errorf("remote client %s: %d", req.RemoteAddr, res.Code)
+	}
+}
+
+func TestOnlyImagesOfTheDevServerLoadFromOtherOrigins(t *testing.T) {
+	devServer := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	t.Cleanup(devServer.Close)
+	app := httptest.NewServer(serve(newServer(t, devServer.URL)))
+	t.Cleanup(app.Close)
+
+	for path, want := range map[string]string{
+		"/build/assets/img/mail/mark.png": "cross-origin",
+
+		"/build/assets/app.ts": "same-origin",
+	} {
+		res := get(t, app.URL+path)
+		if got := res.header.Values("Cross-Origin-Resource-Policy"); res.code != http.StatusOK || slices.Equal(got, []string{want}) == false {
+			t.Errorf("%s: %d, policy %q", path, res.code, got)
+		}
 	}
 }
 
@@ -92,7 +112,7 @@ func serve(server *devserver.Server) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 
 	engine := gin.New()
-	engine.Use(middleware.RequestTimeout(10 * time.Millisecond))
+	engine.Use(middleware.SecurityHeaders(csp.Policy{}), middleware.RequestTimeout(10*time.Millisecond))
 	server.Register(engine)
 
 	return engine
