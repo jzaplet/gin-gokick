@@ -1,0 +1,55 @@
+{{- /* The SPA draws the same footer through assets/shared/Layout/Components/AppFooter.vue. Change both together. */ -}}
+<footer class="px-4 py-6 text-xs text-slate-500">
+    <div class="mx-auto flex max-w-2xl flex-col items-center gap-2 sm:flex-row sm:justify-between">
+        <div class="flex items-center gap-4">
+            <p>{{t "footer.copyright" "year" year}}</p>
+            {{if (tracking).NeedsConsent}}
+                <button
+                    type="button"
+                    class="cursor-pointer underline underline-offset-4 hover:text-ink-900"
+                    data-consent-settings
+                >
+                    {{t "consent.settings"}}
+                </button>
+            {{end}}
+        </div>
+        <nav class="flex items-center gap-4">
+            <a
+                href="https://github.com/jzaplet/gin-gokick"
+                target="_blank"
+                rel="noopener"
+                class="inline-flex items-center gap-1.5 underline-offset-4 hover:text-ink-900 hover:underline"
+            >
+                <svg
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    class="size-3.5"
+                ><use href="{{asset "assets/img/icons/github.svg"}}#icon"/></svg>
+                {{t "brand.name"}}
+            </a>
+            <a
+                href="https://github.com/gin-gonic/gin"
+                target="_blank"
+                rel="noopener"
+                class="inline-flex items-center gap-1.5 underline-offset-4 hover:text-ink-900 hover:underline"
+            >
+                <svg
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    class="size-3.5"
+                ><use href="{{asset "assets/img/icons/github.svg"}}#icon"/></svg>
+                {{t "footer.gin"}}
+            </a>
+        </nav>
+    </div>
+</footer>

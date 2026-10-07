@@ -1,0 +1,108 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    name: Go
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DB_HOST: localhost
+      DB_NAME: gokick
+      DB_TEST_NAME: gokick_test
+      DB_USERNAME: gokick
+      DB_PASSWORD: gokick
+      DB_TEST_PARAMS: "?sslmode=disable"
+    steps:
+      - uses: actions/checkout@v5
+      - name: Application role and databases
+        run: |
+          docker cp docker/postgres/app-role.sql ${{ job.services.postgres.id }}:/app-role.sql
+          docker exec -i -e DB_NAME -e DB_TEST_NAME -e DB_USERNAME -e DB_PASSWORD ${{ job.services.postgres.id }} sh < docker/postgres/initdb/app-role.sh
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - run: corepack enable
+      - uses: actions/cache@v6
+        with:
+          path: .yarn/cache
+          key: yarn-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-${{ runner.os }}-
+      - name: Vite build for the embedded public directory
+        run: yarn install --immutable && yarn build
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            tools/sqlc/go.sum
+      - name: Modules are tidy
+        run: go mod tidy -diff
+      - name: Generated sqlc code matches the queries
+        run: go tool -modfile=tools/sqlc/go.mod sqlc diff
+      - name: Go code has no gofmt columns and no keyed literal wider than 120 columns
+        run: go run ./tools/codestyle -check
+      - name: Generated TypeScript matches the Go types
+        run: go run ./tools/tsgen -check
+      - name: Dictionaries pass their checks and match the generated TypeScript
+        run: go run ./tools/i18n -check
+      - run: go vet ./...
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12.2
+      - run: go test -race ./...
+      - run: go build ./...
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - run: corepack enable
+      - uses: actions/cache@v6
+        with:
+          path: .yarn/cache
+          key: yarn-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-${{ runner.os }}-
+      - run: yarn install --immutable
+      - run: yarn lint
+      - run: yarn typecheck
+      - run: yarn test
+      - run: yarn build
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/production/Dockerfile
+          push: false
+          cache-from: type=gha,scope=${{ github.workflow }}
+          cache-to: type=gha,mode=max,scope=${{ github.workflow }}

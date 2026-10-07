@@ -1,0 +1,51 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/production/Dockerfile
+    env_file: .env
+    environment:
+      PORT: 8020
+    labels:
+      - dev.orbstack.domains=${APP_DOMAIN:?}
+      - dev.orbstack.http-port=8020
+    # ports:
+    #   - "${PORT:-8020}:8020"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      DB_NAME: ${DB_NAME:?}
+      DB_TEST_NAME: ${DB_TEST_NAME:?}
+      DB_USERNAME: ${DB_USERNAME:?}
+      DB_PASSWORD: ${DB_PASSWORD:?}
+    labels:
+      - dev.orbstack.domains=db.${APP_DOMAIN:?}
+    # ports:
+    #   - "54320:5432"
+    volumes:
+      - db-data:/var/lib/postgresql
+      - ./docker/postgres/app-role.sql:/app-role.sql:ro
+      - ./docker/postgres/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:latest
+    labels:
+      - dev.orbstack.domains=mail.${APP_DOMAIN:?}
+      - dev.orbstack.http-port=8025
+    # ports:
+    #   - "8025:8025"
+    #   - "1025:1025"
+
+volumes:
+  db-data:

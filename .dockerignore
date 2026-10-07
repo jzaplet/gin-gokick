@@ -1,0 +1,7 @@
+.env
+gokick
+node_modules
+.yarn
+public/build
+public/.hot
+.git/config

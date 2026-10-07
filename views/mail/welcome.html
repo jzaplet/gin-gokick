@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="{{.Locale.Tag}}" xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="color-scheme" content="light">
+        <meta name="supported-color-schemes" content="light">
+        <meta name="x-apple-disable-message-reformatting">
+        <title>{{template "subject" .}}</title>
+    </head>
+    <body
+        style="margin:0; padding:0; background-color:#f8fafc; color:#0b1226; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;"
+    >
+        <div
+            style="display:none; font-size:1px; line-height:1px; max-height:0; max-width:0; overflow:hidden; mso-hide:all; color:#f8fafc;"
+        >
+            {{t "mail.welcome.preheader"}}&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;
+        </div>
+        <table
+            role="presentation"
+            width="100%"
+            cellpadding="0"
+            cellspacing="0"
+            border="0"
+            bgcolor="#f8fafc"
+            style="background-color:#f8fafc; mso-table-lspace:0pt; mso-table-rspace:0pt;"
+        >
+            <tr>
+                <td align="center" style="padding:24px 16px;">
+                    <table
+                        role="presentation"
+                        width="600"
+                        cellpadding="0"
+                        cellspacing="0"
+                        border="0"
+                        style="width:100%; max-width:600px; mso-table-lspace:0pt; mso-table-rspace:0pt;"
+                    >
+                        <tr>
+                            <td align="left" style="padding:8px 0 22px 28px;">
+                                <table
+                                    role="presentation"
+                                    cellpadding="0"
+                                    cellspacing="0"
+                                    border="0"
+                                    style="mso-table-lspace:0pt; mso-table-rspace:0pt;"
+                                >
+                                    <tr>
+                                        <td style="padding-right:12px; vertical-align:middle;">
+                                            <img
+                                                src="{{.Origin}}{{asset "assets/img/mail/mark.png"}}"
+                                                alt="{{t "brand.name"}}"
+                                                width="40"
+                                                height="40"
+                                                style="display:block; width:40px; height:40px; border:0; -ms-interpolation-mode:bicubic;"
+                                            >
+                                        </td>
+                                        <td style="vertical-align:middle;">
+                                            <p
+                                                style="margin:0; font-family:'Plus Jakarta Sans',Arial,Helvetica,sans-serif; font-weight:600; font-size:18px; letter-spacing:-0.3px; line-height:1; color:#0b1226;"
+                                            >
+                                                {{t "brand.name"}}
+                                            </p>
+                                            <p
+                                                style="margin:5px 0 0; font-family:'Plus Jakarta Sans',Arial,Helvetica,sans-serif; font-size:12px; color:#64748b;"
+                                            >
+                                                {{t "home.title"}}
+                                            </p>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td
+                                bgcolor="#ffffff"
+                                style="background-color:#ffffff; border:1px solid #e2e8f0; border-radius:16px; padding:32px 28px;"
+                            >
+                                <h1
+                                    style="margin:0 0 6px; font-family:'Plus Jakarta Sans',Arial,Helvetica,sans-serif; font-weight:600; font-size:26px; line-height:1.2; letter-spacing:-0.6px; color:#0b1226;"
+                                >
+                                    {{t "mail.welcome.heading"}}
+                                </h1>
+                                <p
+                                    style="margin:0 0 4px; font-family:'Plus Jakarta Sans',Arial,Helvetica,sans-serif; font-size:18px; font-weight:600; color:#0b1226;"
+                                >
+                                    {{.Params.Email}}
+                                </p>
+                                <p
+                                    style="margin:0 0 20px; font-family:'Plus Jakarta Sans',Arial,Helvetica,sans-serif; font-size:14px; color:#64748b;"
+                                >
+                                    {{t "mail.welcome.account"}}
+                                </p>
+                                <table
+                                    role="presentation"
+                                    width="100%"
+                                    cellpadding="0"
+                                    cellspacing="0"
+                                    border="0"
+                                    style="mso-table-lspace:0pt; mso-table-rspace:0pt;"
+                                >
+                                    <tr>
+                                        <td style="padding:0 0 20px;">
+                                            <img
+                                                src="{{.Origin}}{{ogImage .Locale}}"
+                                                alt="{{t "home.title"}}"
+                                                width="544"
+                                                height="286"
+                                                style="display:block; width:100%; max-width:544px; height:auto; border:0; border-radius:12px; -ms-interpolation-mode:bicubic;"
+                                            >
+                                        </td>
+                                    </tr>
+                                </table>
+                                <p
+                                    style="margin:0 0 24px; font-family:'Plus Jakarta Sans',Arial,Helvetica,sans-serif; font-size:16px; line-height:1.55; color:#475569;"
+                                >
+                                    {{t "mail.welcome.intro"}}
+                                </p>
+                                <table
+                                    role="presentation"
+                                    width="100%"
+                                    cellpadding="0"
+                                    cellspacing="0"
+                                    border="0"
+                                    style="margin:0 0 12px; mso-table-lspace:0pt; mso-table-rspace:0pt;"
+                                >
+                                    <tr>
+                                        <td
+                                            align="center"
+                                            bgcolor="#2b55e6"
+                                            style="border-radius:999px; padding:15px 24px;"
+                                        >
+                                            <a
+                                                href="{{.Origin}}/{{.Locale.Language}}/app/dashboard"
+                                                target="_blank"
+                                                rel="noopener"
+                                                style="display:block; font-family:'Plus Jakarta Sans',Arial,Helvetica,sans-serif; font-weight:600; font-size:16px; color:#ffffff; text-decoration:none;"
+                                            >{{t "mail.welcome.open_app"}}</a>
+                                        </td>
+                                    </tr>
+                                </table>
+                                <table
+                                    role="presentation"
+                                    width="100%"
+                                    cellpadding="0"
+                                    cellspacing="0"
+                                    border="0"
+                                    style="mso-table-lspace:0pt; mso-table-rspace:0pt;"
+                                >
+                                    <tr>
+                                        <td
+                                            align="center"
+                                            bgcolor="#ffffff"
+                                            style="border:1px solid #e2e8f0; border-radius:999px; padding:14px 24px;"
+                                        >
+                                            <a
+                                                href="https://github.com/jzaplet/gin-gokick"
+                                                target="_blank"
+                                                rel="noopener"
+                                                style="display:block; font-family:'Plus Jakarta Sans',Arial,Helvetica,sans-serif; font-weight:600; font-size:16px; color:#0b1226; text-decoration:none;"
+                                            >{{t "home.clone_highlight"}}</a>
+                                        </td>
+                                    </tr>
+                                </table>
+                                <table
+                                    role="presentation"
+                                    width="100%"
+                                    cellpadding="0"
+                                    cellspacing="0"
+                                    border="0"
+                                    style="margin:24px 0 0; mso-table-lspace:0pt; mso-table-rspace:0pt;"
+                                >
+                                    <tr>
+                                        <td style="border-top:1px solid #e2e8f0; padding-top:20px;">
+                                            <p
+                                                style="margin:0 0 14px; font-family:'Plus Jakarta Sans',Arial,Helvetica,sans-serif; font-size:15px; line-height:1.55; color:#475569;"
+                                            >
+                                                {{t "mail.welcome.rules"}}
+                                                <a
+                                                    href="https://github.com/jzaplet/gin-gokick"
+                                                    style="color:#2b55e6; text-decoration:underline;"
+                                                >{{t "mail.welcome.rules_link"}}</a>.
+                                            </p>
+                                            <p
+                                                style="margin:0; font-family:'Plus Jakarta Sans',Arial,Helvetica,sans-serif; font-size:15px; line-height:1.55; color:#475569;"
+                                            >
+                                                {{t "mail.welcome.gin"}}
+                                                <a
+                                                    href="https://github.com/gin-gonic/gin"
+                                                    style="color:#2b55e6; text-decoration:underline;"
+                                                >{{t "mail.welcome.gin_link"}}</a>.
+                                            </p>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td align="center" style="padding:28px 16px 8px;">
+                                <p
+                                    style="margin:0 0 12px; font-family:'Plus Jakarta Sans',Arial,Helvetica,sans-serif; font-size:12px; color:#64748b;"
+                                >
+                                    <a
+                                        href="{{.Origin}}{{home .Locale}}"
+                                        style="color:#2b55e6; text-decoration:none;"
+                                    >{{t "mail.home"}}</a>
+                                    &nbsp;·&nbsp;
+                                    <a
+                                        href="{{.Origin}}/{{.Locale.Language}}/app/login"
+                                        style="color:#2b55e6; text-decoration:none;"
+                                    >{{t "home.try_login"}}</a>
+                                    &nbsp;·&nbsp;
+                                    <a
+                                        href="https://github.com/jzaplet/gin-gokick"
+                                        style="color:#2b55e6; text-decoration:none;"
+                                    >{{t "brand.name"}}</a>
+                                    &nbsp;·&nbsp;
+                                    <a
+                                        href="https://github.com/gin-gonic/gin"
+                                        style="color:#2b55e6; text-decoration:none;"
+                                    >{{t "footer.gin"}}</a>
+                                </p>
+                                <p
+                                    style="margin:0 0 12px; font-family:'Plus Jakarta Sans',Arial,Helvetica,sans-serif; font-size:13px; color:#64748b;"
+                                >
+                                    {{t "footer.copyright" "year" year}}
+                                </p>
+                                <p
+                                    style="margin:0; font-family:'Plus Jakarta Sans',Arial,Helvetica,sans-serif; font-size:12px; color:#94a3b8; line-height:1.5;"
+                                >
+                                    {{t "mail.welcome.reason"}}
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+</html>
+
+{{define "subject"}}{{t "mail.welcome.subject"}}{{end}}

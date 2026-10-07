@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="{{.Locale.Tag}}">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta property="csp-nonce" nonce="{{.Nonce}}">
+        <meta
+            name="locale"
+            content="{{.Locale}}"
+            data-homes="{{range $i, $h := .Homes}}{{if $i}} {{end}}{{$h.Language}}={{$h.Path}}{{end}}"
+            data-languages="{{range $i, $l := .Languages}}{{if $i}} {{end}}{{$l.Locale}}{{end}}"
+        >
+        {{range .Alternates}}
+            <link rel="alternate" hreflang="{{.Lang}}" href="{{.URL}}">
+        {{end}}
+        <link rel="icon" href="/favicon.ico" sizes="32x32">
+        <link rel="icon" href="{{asset "assets/img/mark.svg"}}" type="image/svg+xml">
+        {{vite .Nonce "assets/standalone/favicon.ts"}}
+        {{sentry}}
+        {{with tracking}}
+            {{with .UmamiWebsiteID}}
+                <script
+                    nonce="{{$.Nonce}}"
+                    defer
+                    src="{{umamiScript}}"
+                    data-website-id="{{.}}"
+                    data-exclude-hash="true"
+                ></script>
+            {{end}}
+            {{if .NeedsConsent}}
+                <meta
+                    name="tracking"
+                    data-ga4="{{.GA4MeasurementID}}"
+                    data-google-ads="{{.GoogleAdsID}}"
+                    data-meta-pixel="{{.MetaPixelID}}"
+                    data-google-ads-conversions="{{.GoogleAdsConversions}}"
+                >
+                {{vite $.Nonce "assets/standalone/consent.ts"}}
+            {{end}}
+        {{end}}
+        <title>{{template "title" .}}</title>
+        <meta name="description" content="{{template "description" .}}">
+        {{block "index" .}}
+            <meta property="og:type" content="website">
+            <meta property="og:site_name" content="{{t "brand.name"}}">
+            <meta property="og:locale" content="{{.Locale}}">
+            <meta property="og:url" content="{{.URL}}">
+            <meta property="og:title" content="{{template "title" .}}">
+            <meta property="og:description" content="{{template "description" .}}">
+            <meta property="og:image" content="{{.Origin}}{{ogImage .Locale}}">
+            <meta property="og:image:type" content="image/png">
+            <meta property="og:image:width" content="1200">
+            <meta property="og:image:height" content="630">
+            <meta property="og:image:alt" content="{{t "home.title"}}">
+            <meta name="twitter:card" content="summary_large_image">
+        {{end}}
+        {{block "head" .}}{{end}}
+        {{block "assets" .}}
+            {{vite .Nonce "assets/app.css"}}
+        {{end}}
+        {{block "dictionary" .}}
+            {{if (tracking).NeedsConsent}}
+                {{dictionary .Nonce .Locale}}
+            {{end}}
+        {{end}}
+    </head>
+    <body class="antialiased">{{block "content" .}}{{end}}</body>
+</html>

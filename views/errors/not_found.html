@@ -1,0 +1,61 @@
+{{- /* The SPA shows the same page through assets/app/NotFound/Views/NotFoundView.vue in PublicLayout. Change both together. */ -}}
+{{template "shared/layout.html" .}}
+
+{{define "title"}}{{t "not_found.title"}} | {{t "brand.name"}}{{end}}
+
+{{define "description"}}{{t "not_found.description"}}{{end}}
+
+{{define "index"}}
+    <meta name="robots" content="noindex">
+{{end}}
+
+{{define "assets"}}{{vite .Nonce "assets/app.css" "assets/standalone/constellation.ts" "assets/standalone/dropdowns.ts"}}{{end}}
+
+{{define "content"}}
+    <div class="isolate flex min-h-screen flex-col bg-slate-50 text-ink-900">
+        <div data-constellation></div>
+        <header class="flex items-center justify-between px-4 py-5 sm:px-6 lg:px-10">
+            <a href="{{.Home}}" class="inline-flex">
+                <img
+                    src="{{asset "assets/img/logo.svg"}}"
+                    alt="{{t "brand.name"}}"
+                    width="147"
+                    height="32"
+                    class="h-8 w-auto"
+                >
+            </a>
+            {{template "shared/languages.html" .}}
+        </header>
+        <main class="grid flex-1 place-items-center px-4 py-6 sm:py-10">
+            <div class="flex w-full flex-col items-center gap-6">
+                <div class="text-center">
+                    <p
+                        class="text-9xl leading-none font-extrabold tracking-tighter text-ink-900 sm:text-[12rem] lg:text-[15rem]"
+                    >
+                        {{t "not_found.status"}}
+                    </p>
+                    <h1 class="mt-4 text-2xl font-semibold tracking-tight text-slate-600 sm:text-3xl">
+                        {{t "not_found.title"}}
+                    </h1>
+                </div>
+                <a
+                    href="{{.Home}}"
+                    class="inline-flex items-center gap-1 rounded-full px-4 py-1.5 text-sm font-medium whitespace-nowrap text-slate-600 transition-colors hover:bg-slate-100 hover:text-ink-900"
+                >
+                    <svg
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                        class="size-4"
+                    ><use href="{{asset "assets/img/icons/chevron-left.svg"}}#icon"/></svg>
+                    {{t "navigation.back_home"}}
+                </a>
+            </div>
+        </main>
+        {{template "shared/footer.html" .}}
+    </div>
+{{end}}

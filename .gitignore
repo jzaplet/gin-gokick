@@ -1,0 +1,14 @@
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+.env
+*.pem
+*.key
+
+/gokick
+/node_modules/
+/.yarn/
+/public/build/
+/public/.hot

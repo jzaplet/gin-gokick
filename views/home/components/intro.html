@@ -1,0 +1,62 @@
+<div class="px-4 pt-8 pb-12 sm:px-6 lg:px-10 xl:self-center xl:px-0 xl:py-8">
+    <svg
+        viewBox="0 0 32 32"
+        aria-hidden="true"
+        class="size-44 overflow-visible text-brand-400 sm:size-56"
+        data-mark-motion
+    ><g data-mark-drink><use
+        href="{{asset "assets/img/mark.svg"}}#glass"
+        data-mark-glass
+    /><use href="{{asset "assets/img/mark.svg"}}#lime" data-mark-lime/></g></svg>
+    <h1 class="mt-10 text-5xl font-semibold tracking-tight text-balance sm:text-6xl xl:text-[3.375rem]">
+        {{t "home.heading_before"}}
+        <span class="whitespace-nowrap">{{t "home.heading_full_stack"}}</span>
+        {{t "home.heading_middle"}}
+        <span class="text-brand-500">{{t "home.heading_highlight"}}</span>
+        {{t "home.heading_after"}}
+    </h1>
+    <p class="mt-6 max-w-xl text-xl/relaxed text-pretty text-slate-600">{{t "home.description"}}</p>
+    <hr class="mt-8 w-16 border-slate-200">
+    <p class="mt-6 text-lg font-semibold">
+        <span class="text-brand-600">{{t "home.clone_highlight"}}</span>
+        {{t "home.clone_rest"}}
+    </p>
+    <nav aria-label="{{t "home.repositories"}}" class="mt-4 flex flex-wrap items-center gap-3">
+        <a
+            href="https://github.com/jzaplet/gin-gokick"
+            target="_blank"
+            rel="noopener"
+            class="inline-flex items-center gap-2 rounded-full bg-brand-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink-900 focus-visible:ring-offset-2"
+        >
+            <svg
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+                class="size-4"
+            ><use href="{{asset "assets/img/icons/github.svg"}}#icon"/></svg>
+            {{t "home.repo_gokick"}}
+        </a>
+        <a
+            href="https://github.com/gin-gonic/gin"
+            target="_blank"
+            rel="noopener"
+            class="inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-200/70 hover:text-ink-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink-900 focus-visible:ring-offset-2"
+        >
+            <svg
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+                class="size-4"
+            ><use href="{{asset "assets/img/icons/github.svg"}}#icon"/></svg>
+            {{t "home.repo_gin"}}
+        </a>
+    </nav>
+</div>

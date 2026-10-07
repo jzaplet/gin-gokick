@@ -1,0 +1,86 @@
+@import 'tailwindcss' source(none);
+@source '../views';
+@source '.';
+
+@font-face {
+    font-family: 'Plus Jakarta Sans';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 200 800;
+    src: url('./fonts/plus-jakarta-sans/plus-jakarta-sans-latin-ext-wght-normal.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF,
+        U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+    font-family: 'Plus Jakarta Sans';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 200 800;
+    src: url('./fonts/plus-jakarta-sans/plus-jakarta-sans-latin-wght-normal.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+        U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+    font-family: 'Plus Jakarta Sans';
+    font-style: italic;
+    font-display: swap;
+    font-weight: 200 800;
+    src: url('./fonts/plus-jakarta-sans/plus-jakarta-sans-latin-ext-wght-italic.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF,
+        U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+    font-family: 'Plus Jakarta Sans';
+    font-style: italic;
+    font-display: swap;
+    font-weight: 200 800;
+    src: url('./fonts/plus-jakarta-sans/plus-jakarta-sans-latin-wght-italic.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+        U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@theme {
+    --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+
+    --color-ink-600: #2a3861;
+    --color-ink-700: #1b2749;
+    --color-ink-800: #121b36;
+    --color-ink-900: #0b1226;
+    --color-ink-950: #060a17;
+
+    --color-brand-50: #eef3ff;
+    --color-brand-100: #dbe5ff;
+    --color-brand-200: #b9ccff;
+    --color-brand-300: #93b0ff;
+    --color-brand-400: #6b90ff;
+    --color-brand-500: #3d6cff;
+    --color-brand-600: #2b55e6;
+    --color-brand-700: #2243b8;
+    --color-brand-800: #1c3690;
+
+    --animate-appear: appear 0s 300ms both;
+    --animate-appear-late: appear 0s 10s both;
+
+    @keyframes appear {
+        from {
+            visibility: hidden;
+            opacity: 0;
+        }
+
+        to {
+            visibility: visible;
+            opacity: 1;
+        }
+    }
+}
+
+@layer base {
+    html:has(dialog:modal) {
+        overflow: hidden;
+        scrollbar-gutter: stable;
+    }
+}

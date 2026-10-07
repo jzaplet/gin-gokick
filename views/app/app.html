@@ -1,0 +1,33 @@
+{{template "shared/layout.html" .}}
+
+{{define "title"}}{{t "app.title"}} | {{t "brand.name"}}{{end}}
+
+{{define "description"}}{{t "app.description"}}{{end}}
+
+{{define "assets"}}{{vite .Nonce "assets/app.css" "assets/app.ts" "assets/standalone/constellation.ts"}}{{end}}
+
+{{define "dictionary"}}{{dictionary .Nonce .Locale}}{{end}}
+
+{{define "content"}}
+    <div id="app">
+        <div
+            class="flex min-h-screen flex-col items-center justify-center gap-6 bg-slate-50 px-4 text-center text-ink-900"
+            role="status"
+            data-loader
+        >
+            <div class="animate-appear">
+                <span
+                    class="block size-8 animate-spin rounded-full border-2 border-ink-900/25 border-t-ink-900 motion-reduce:animate-pulse"
+                    aria-hidden="true"
+                ></span><span class="sr-only">{{t "app.loading"}}</span>
+            </div>
+            <p class="animate-appear-late text-sm text-slate-600">
+                {{t "app.loading_slow"}}
+                <a
+                    href=""
+                    class="font-medium text-ink-900 underline underline-offset-2 hover:text-slate-600"
+                >{{t "app.reload"}}</a>
+            </p>
+        </div>
+    </div>
+{{end}}

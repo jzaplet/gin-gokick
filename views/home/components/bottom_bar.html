@@ -1,0 +1,26 @@
+<footer
+    class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-6 text-sm sm:px-6 lg:px-10"
+>
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <p class="text-slate-500">{{t "home.try_live"}}</p>
+        <nav class="flex items-center gap-6">
+            <a
+                href="/{{.Locale.Language}}/app/register"
+                class="font-medium text-slate-600 underline underline-offset-4 transition-colors hover:text-ink-900"
+            >{{t "home.try_register"}}</a>
+            <a
+                href="/{{.Locale.Language}}/app/login"
+                class="font-medium text-slate-600 underline underline-offset-4 transition-colors hover:text-ink-900"
+            >{{t "home.try_login"}}</a>
+        </nav>
+    </div>
+    {{if (tracking).NeedsConsent}}
+        <button
+            type="button"
+            class="cursor-pointer text-slate-500 underline underline-offset-4 transition-colors hover:text-ink-900"
+            data-consent-settings
+        >
+            {{t "consent.settings"}}
+        </button>
+    {{end}}
+</footer>

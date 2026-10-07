@@ -1,0 +1,59 @@
+min_version: 2.1.14
+lefthook: node_modules/.bin/lefthook
+
+pre-commit:
+  piped: true
+  setup:
+    - run: git status --porcelain > "$(git rev-parse --git-path pre-commit-status)"
+  jobs:
+    - name: whole-files
+      run: |
+        ! grep -E '^[^ ?][^ ?] .*\.(go|html|ts|vue)$' "$(git rev-parse --git-path pre-commit-status)"
+      fail_text: Stage these files whole. A fix of a file staged in part would shift the lines left unstaged.
+    - name: yarn-install
+      glob: "{package.json,yarn.lock}"
+      run: yarn install --immutable
+    - name: tsgen
+      glob: "*.go"
+      run: written=$(go run ./tools/tsgen) && printf '%s\n' "$written" | cut -d ' ' -f 2- | xargs -r git add --
+    - name: i18n
+      glob: "*.{go,html,ts,vue}"
+      run: written=$(go run ./tools/i18n) && printf '%s\n' "$written" | cut -d ' ' -f 2- | xargs -r git add --
+    - name: eslint
+      glob: "*.{ts,vue}"
+      run: yarn eslint --fix {staged_files}
+      stage_fixed: true
+    - name: typecheck
+      glob: "*.{go,ts,vue}"
+      run: yarn typecheck
+    - name: codestyle
+      glob: "*.{go,html}"
+      run: go run ./tools/codestyle
+      stage_fixed: true
+    - name: sqlc
+      glob: "{*.sql,sqlc.yaml}"
+      run: go tool -modfile=tools/sqlc/go.mod sqlc diff
+    - name: golangci-lint
+      glob: "*.go"
+      run: GOLANGCI_LINT_CACHE="$(git rev-parse --absolute-git-dir)/golangci-lint" golangci-lint run --fix ./...
+      stage_fixed: true
+    - name: vet
+      glob: "*.go"
+      run: go vet ./...
+    - name: mod-tidy
+      glob: "{*.go,go.mod,go.sum}"
+      run: go mod tidy -diff
+
+pre-push:
+  commands:
+    branch-name:
+      run: |
+        branch="$(git rev-parse --abbrev-ref HEAD)"
+        case "$branch" in
+          main|feat/*|fix/*|refactor/*|perf/*|docs/*|test/*)
+            exit 0 ;;
+        esac
+        echo "Branch '$branch' needs one of the prefixes feat/ fix/ refactor/ perf/ docs/ test/"
+        exit 1
+    commitlint:
+      run: yarn exec commitlint --from origin/main --to HEAD

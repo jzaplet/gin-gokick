@@ -1,0 +1,264 @@
+version: "2"
+
+run:
+  build-tags:
+    - mailpit
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - copyloopvar
+    - depguard
+    - errname
+    - errorlint
+    - exhaustive
+    - forbidigo
+    - funlen
+    - gocognit
+    - gocritic
+    - gosec
+    - misspell
+    - modernize
+    - nestif
+    - nilerr
+    - noctx
+    - perfsprint
+    - revive
+    - sloglint
+    - thelper
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - wastedassign
+    - wsl_v5
+  settings:
+    depguard:
+      rules:
+        main:
+          allow:
+            - $gostd
+            - gokick
+            - github.com/gin-gonic/gin
+            - github.com/go-playground/validator/v10
+            - github.com/google/uuid
+            - github.com/joho/godotenv
+            - github.com/getsentry/sentry-go
+            - github.com/jackc/pgx/v5
+            - github.com/pressly/goose/v3
+            - github.com/prometheus/client_golang
+            - golang.org/x/crypto/argon2
+            - golang.org/x/net/html
+            - golang.org/x/text/feature/plural
+            - golang.org/x/text/language
+            - golang.org/x/text/message
+            - golang.org/x/text/number
+        core:
+          files:
+            - "**/app/core/**"
+          deny:
+            - pkg: gokick/app/internal
+              desc: "core stays reusable in other projects: it must not import the app's internal packages"
+        domain:
+          files:
+            - "**/app/internal/**"
+            - "!**/app/internal/*/handler/**"
+            - "!**/app/internal/shared/**"
+          deny:
+            - pkg: github.com/gin-gonic/gin
+              desc: "a domain package takes plain values; only its handler knows HTTP"
+            - pkg: gokick/app/core/api
+              desc: "a domain package returns sentinel errors; its handler turns them into the API envelope"
+        sentry:
+          files:
+            - "!**/app/core/reporting/**"
+          deny:
+            - pkg: github.com/getsentry/sentry-go
+              desc: "report errors through core/reporting"
+        html:
+          files:
+            - "!**/tools/i18n/templates/baretext/**"
+            - "!**/tools/i18n/frontend/**"
+          deny:
+            - pkg: golang.org/x/net/html
+              desc: "only tools/i18n tokenizes HTML (templates/baretext in the Go templates, frontend in the Vue components), so the app binary never carries it"
+        goose:
+          files:
+            - "!**/app/core/database/**"
+          deny:
+            - pkg: github.com/pressly/goose/v3
+              desc: "run migrations through core/database"
+        validator:
+          files:
+            - "!**/app/core/api/**"
+          deny:
+            - pkg: github.com/go-playground/validator/v10
+              desc: "bind and validate request bodies through core/api"
+        prometheus:
+          files:
+            - "!**/app/core/metrics/**"
+          deny:
+            - pkg: github.com/prometheus/client_golang
+              desc: "record metrics through core/metrics"
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: ^fmt\.(Print|Printf|Println)$
+          msg: "do not print to stdout; log through *slog.Logger"
+        - pattern: ^(print|println)$
+          msg: "do not use the print builtins; log through *slog.Logger"
+        - pattern: ^log\.(Print|Printf|Println|Fatal|Fatalf|Fatalln|Panic|Panicf|Panicln|New|Default)$
+          msg: "do not use the stdlib log package; log through *slog.Logger"
+        - pattern: ^slog\.New
+          msg: "build loggers and handlers only in core/logging"
+        - pattern: ^slog\.(Default|SetDefault)$
+          msg: "do not use the global logger; inject *slog.Logger"
+        - pattern: ^os\.(Stdout|Stderr)$
+          msg: "only main.go hands a stream to logging.New"
+        - pattern: ^gin\.(Default|Logger|LoggerWithConfig|LoggerWithFormatter|LoggerWithWriter|Recovery|RecoveryWithWriter)$
+          msg: "build the engine with httpserver.NewEngine; gin's logger and recovery are a second log path"
+        - pattern: ^gin\.Context\.Error$
+          pkg: ^github\.com/gin-gonic/gin$
+          msg: "report handler errors with reporting.Error, which keeps the stack for Sentry"
+        - pattern: ^gin\.Context\.(Bind|ShouldBind|MustBind)
+          pkg: ^github\.com/gin-gonic/gin$
+          msg: "read request bodies with api.Bind, which answers errors in the API envelope"
+        - pattern: ^gin\.Context\.(JSON|AbortWithStatusJSON|IndentedJSON|SecureJSON|JSONP|AsciiJSON|PureJSON)$
+          pkg: ^github\.com/gin-gonic/gin$
+          msg: "answer with api.JSON, which sends a nil slice or map as an empty one"
+    staticcheck:
+      checks:
+        - all
+        - -ST1000
+        - -ST1003
+        - -ST1016
+        - -ST1020
+        - -ST1021
+        - -ST1022
+        - -S1002
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+    sloglint:
+      attr-only: true
+      no-global: all
+      context: all
+      static-msg: true
+      msg-style: lowercased
+      no-raw-keys: true
+      key-naming-case: snake
+      forbidden-keys:
+        - time
+        - level
+        - msg
+        - source
+    funlen:
+      lines: 80
+      statements: 50
+      ignore-comments: true
+    gocognit:
+      min-complexity: 20
+    nestif:
+      min-complexity: 4
+    revive:
+      rules:
+        - name: var-naming
+        - name: indent-error-flow
+        - name: early-return
+        - name: superfluous-else
+        - name: unused-parameter
+        - name: file-length-limit
+          arguments:
+            - max: 500
+    wsl_v5:
+      default: none
+      enable:
+        - after-block
+        - after-defer
+        - after-go
+        - append
+        - assign
+        - branch
+        - defer
+        - err
+        - expr
+        - for
+        - go
+        - if
+        - inc-dec
+        - label
+        - leading-whitespace
+        - range
+        - return
+        - select
+        - send
+        - switch
+        - trailing-whitespace
+        - type-switch
+  exclusions:
+    rules:
+      - path: app/core/logging/
+        text: build loggers and handlers only in core/logging
+        linters:
+          - forbidigo
+      - path: app/core/api/
+        text: read request bodies with api.Bind
+        linters:
+          - forbidigo
+      - path: app/core/(api|health)/
+        text: answer with api.JSON
+        linters:
+          - forbidigo
+      - path: app/core/reporting/
+        text: report handler errors with reporting.Error
+        linters:
+          - forbidigo
+      - path: ^(app|tools/.+)/main\.go$
+        text: only main.go hands a stream to logging.New
+        linters:
+          - forbidigo
+      - path: app/core/logging/context\.go
+        text: "hugeParam: record is heavy"
+        linters:
+          - gocritic
+      - path: _test\.go
+        linters:
+          - funlen
+          - gocognit
+      - path: ^locale/[a-z]{2}_[A-Z]{2}\.go$
+        text: "file-length-limit:"
+        linters:
+          - revive
+      - path: app/core/testkit/postgres/
+        text: "G101:"
+        linters:
+          - gosec
+      - path: app/core/vite/tags/tags\.go
+        text: "G203:"
+        linters:
+          - gosec
+      - path: app/core/vite/vite\.go
+        text: "G304:"
+        linters:
+          - gosec
+      - path: app/core/reporting/browser\.go
+        text: "G203:"
+        linters:
+          - gosec
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    gofumpt:
+      module-path: gokick
+    goimports:
+      local-prefixes:
+        - gokick

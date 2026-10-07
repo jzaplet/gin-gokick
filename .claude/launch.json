@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "app",
+      "runtimeExecutable": "go",
+      "runtimeArgs": [
+        "run",
+        "./app"
+      ],
+      "port": 8020
+    },
+    {
+      "name": "vite",
+      "runtimeExecutable": "corepack",
+      "runtimeArgs": [
+        "yarn",
+        "dev"
+      ],
+      "port": 5173
+    }
+  ]
+}

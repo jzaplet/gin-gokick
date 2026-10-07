@@ -1,0 +1,75 @@
+{{- /* The SPA draws the same switcher through assets/shared/I18n/Components/LanguageSwitcher.vue. Change both together. */ -}}
+{{if .Languages}}
+    <details data-dropdown class="group/menu relative">
+        <summary
+            aria-label="{{t "language.change"}}"
+            class="group/tooltip relative flex h-9 cursor-pointer list-none items-center gap-1 rounded-md px-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink-900 [&::-webkit-details-marker]:hidden"
+        >
+            {{range .Languages}}
+                {{if eq .Locale.Language $.Locale.Language}}
+                    <img
+                        src="{{flag .Locale}}"
+                        alt=""
+                        width="24"
+                        height="16"
+                        class="h-4 w-6 rounded-xs ring-1 ring-black/10"
+                    >
+                {{end}}
+            {{end}}
+            <svg
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+                class="size-4"
+            ><use href="{{asset "assets/img/icons/chevron-down.svg"}}#icon"/></svg>
+            <span
+                role="tooltip"
+                class="pointer-events-none absolute top-full right-0 z-30 mt-2 w-max max-w-50 rounded-md bg-ink-900 px-2.5 py-1.5 text-center text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover/tooltip:opacity-100 group-focus-visible/tooltip:opacity-100 group-open/menu:hidden"
+            >{{t "language.change"}}<span
+                class="absolute right-3 bottom-full -mb-1 size-2 rotate-45 bg-ink-900"
+            ></span></span>
+        </summary>
+        <ul
+            class="absolute right-0 z-50 mt-2 w-max min-w-36 rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+        >
+            {{range .Languages}}
+                {{if eq .Locale.Language $.Locale.Language}}
+                    <li
+                        lang="{{.Locale.Language}}"
+                        aria-current="true"
+                        class="flex items-center gap-3 px-4 py-2 text-sm font-semibold text-ink-900"
+                    >
+                        <img
+                            src="{{flag .Locale}}"
+                            alt=""
+                            width="24"
+                            height="16"
+                            class="h-4 w-6 shrink-0 rounded-xs ring-1 ring-black/10"
+                        >
+                        {{languageName .Locale}}
+                    </li>
+                {{else}}
+                    <li lang="{{.Locale.Language}}">
+                        <a
+                            href="{{.Path}}"
+                            class="flex items-center gap-3 px-4 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50 hover:text-ink-900 focus:outline-none focus-visible:bg-slate-50"
+                        >
+                            <img
+                                src="{{flag .Locale}}"
+                                alt=""
+                                width="24"
+                                height="16"
+                                class="h-4 w-6 shrink-0 rounded-xs ring-1 ring-black/10 grayscale-[70%]"
+                            >
+                            {{languageName .Locale}}
+                        </a>
+                    </li>
+                {{end}}
+            {{end}}
+        </ul>
+    </details>
+{{end}}
