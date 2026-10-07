@@ -109,7 +109,7 @@ func TestEnvExampleIsValid(t *testing.T) {
 		t.Fatalf(".env.example: %v", err)
 	}
 
-	if cfg.Server.GinMode != "debug" || cfg.Log.Format != "text" || cfg.Database.Host != "db."+example["APP_DOMAIN"] || cfg.Database.Params.Get("pool_max_conns") == "" || cfg.Server.URL != "https://"+example["APP_DOMAIN"] || cfg.SMTP.Enabled == false || cfg.SMTP.Addr() != "mail."+example["APP_DOMAIN"]+":1025" || cfg.SMTP.Username != "" || cfg.Sentry.Environment != example["SENTRY_ENVIRONMENT"] {
+	if cfg.Server.GinMode != "debug" || cfg.Log.Format != "text" || cfg.Database.Host != "db."+example["APP_DOMAIN"] || cfg.Database.Params.Get("pool_max_conns") == "" || cfg.Server.URL != "http://localhost:"+example["PORT"] || cfg.SMTP.Enabled == false || cfg.SMTP.Addr() != "mail."+example["APP_DOMAIN"]+":1025" || cfg.SMTP.Username != "" || cfg.Sentry.Environment != example["SENTRY_ENVIRONMENT"] {
 		t.Errorf("the example was not read: %+v", cfg)
 	}
 

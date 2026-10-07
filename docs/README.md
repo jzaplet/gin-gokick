@@ -46,8 +46,8 @@ go run ./app            # in a second terminal: http://localhost:8020
 - **Start Vite first.** Go decides at start whether Vite runs (`public/.hot`). Without Vite it needs a build from `yarn build`, or it doesn't start.
 - **Open the site through Go**, on `localhost` or `127.0.0.1`, also in development.
 - **The git hooks.** `yarn exec lefthook install` installs them once, and [Checks](#checks) says what they run. They run the lefthook of `package.json`, never an older one on the `PATH`. Yarn runs no install scripts, so they never install themselves.
-- **The whole app in a container.** `docker compose up -d --build` runs it on `https://<APP_DOMAIN>`.
-- **Mailpit.** `docker compose up -d mailpit` catches the mails on `https://mail.<APP_DOMAIN>`. Their links and images lead to `APP_URL`. With `go run`, set `APP_URL=http://localhost:8020` and open Mailpit on `http://mail.<APP_DOMAIN>`, because a page on HTTPS loads no images over HTTP.
+- **The whole app in a container.** `docker compose up -d --build` runs it on `https://<APP_DOMAIN>`, which compose sets as its `APP_URL`.
+- **Mailpit.** `docker compose up -d mailpit` catches the mails on `https://mail.<APP_DOMAIN>`. Their links and images lead to `APP_URL`, which `.env.example` sets to `http://localhost:8020` of `go run`. Open Mailpit on `http://mail.<APP_DOMAIN>` then, because a page on HTTPS loads no images over HTTP.
 
 ## Repository
 
@@ -94,7 +94,7 @@ The app reads the environment, and `.env` fills in what the environment lacks. `
 | `UMAMI_WEBSITE_ID` | empty | Umami, which needs no consent |
 | `GA4_MEASUREMENT_ID`, `GOOGLE_ADS_ID`, `META_PIXEL_ID` | empty | tools that wait for cookie consent |
 | `GOOGLE_ADS_CONVERSIONS` | empty | conversion labels (`sign_up=AbC-D_efG`); an unknown conversion stops the start |
-| `APP_DOMAIN`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | — | not read by the app: the local domain for `docker compose` (`.env.example` builds `APP_URL`, `DB_HOST`, `SMTP_HOST` and `SMTP_SENDER_EMAIL` from it) and the PostgreSQL superuser |
+| `APP_DOMAIN`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | — | not read by the app: the local domain for `docker compose` (`.env.example` builds `DB_HOST`, `SMTP_HOST` and `SMTP_SENDER_EMAIL` from it, and compose the `APP_URL` of the container) and the PostgreSQL superuser |
 | `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_REPOSITORY`, `SENTRY_AUTH_TOKEN` | — | only for the Docker build: source maps and the release |
 
 `app/internal/shared/config` puts `Config` together from one package per section of `.env.example`. The exceptions are `TRUSTED_PROXIES`, which the server package reads, and the Sentry build section, which the app never reads.
