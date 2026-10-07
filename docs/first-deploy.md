@@ -176,6 +176,7 @@ Everything can be done in the UI or through the API. `<dokploy>/swagger` shows t
      | ssh <app-server> 'docker exec -i $(docker ps -q -f name=<appName of the database> | head -1) psql -v ON_ERROR_STOP=1 -U postgres -d postgres -v role=<projectname> -v db=<projectname> -f -' || exit 1
    dsn() { sentry_api "<sentry-api>/api/0/projects/<sentry-org>/$1/keys/" | jq -r '[.[] | select(.isActive)][0].dsn.public'; }
    values=$(printf '%s\n' \
+     "APP_URL=https://<domain>" \
      "DB_HOST=<appName of the database>" \
      "DB_NAME=<projectname>" \
      "DB_USERNAME=<projectname>" \
@@ -194,10 +195,10 @@ Everything can be done in the UI or through the API. `<dokploy>/swagger` shows t
      '{applicationId: $a[0].applicationId, env: $env, buildArgs: "SENTRY_ORG=<sentry-org>\nSENTRY_PROJECT=<projectname>-vue\nSENTRY_REPOSITORY=<repo>", buildSecrets: ($a[0].buildSecrets // ""), createEnvFile: $a[0].createEnvFile}' \
      | dokploy_api -X POST --data-binary @- "<dokploy>/api/application.saveEnvironment"
    dokploy_api "<dokploy>/api/application.one?applicationId=<applicationId>" \
-     | jq '{filled: ([.env | split("\n")[] | select(test("^(DB_HOST|DB_NAME|DB_USERNAME|DB_PASSWORD|DB_PARAMS|DEFAULT_LOCALE|METRICS_USER|METRICS_PASSWORD|SENTRY_DSN|SENTRY_FRONTEND_DSN)=.+"))] | length), buildArgs}'
+     | jq '{filled: ([.env | split("\n")[] | select(test("^(APP_URL|DB_HOST|DB_NAME|DB_USERNAME|DB_PASSWORD|DB_PARAMS|DEFAULT_LOCALE|METRICS_USER|METRICS_PASSWORD|SENTRY_DSN|SENTRY_FRONTEND_DSN)=.+"))] | length), buildArgs}'
    ```
 
-   The check must show `filled: 10` and three build args. `application.saveEnvironment` always wants all five fields (`applicationId`, `env`, `buildArgs`, `buildSecrets`, `createEnvFile`). For a later change, load the current values and send them back, or they are deleted. After every change, compare the fingerprint (`shasum`) of the lines that shouldn't have changed.
+   The check must show `filled: 11` and three build args. `application.saveEnvironment` always wants all five fields (`applicationId`, `env`, `buildArgs`, `buildSecrets`, `createEnvFile`). For a later change, load the current values and send them back, or they are deleted. After every change, compare the fingerprint (`shasum`) of the lines that shouldn't have changed.
 5. **The build secret and the deploy:** now the person puts in the organization token (manual item 6). Without it, the build uploads nothing to Sentry. With it, any error of the upload stops the build, and Dokploy keeps the previous version running. Then run `application.deploy` and wait until `https://<domain>/readyz` answers 200. The log of the deploy must show `migration applied` and `listening`.
 6. **Optional: change the database password.** The password of the role is readable only in `DB_PASSWORD` in Dokploy; Postgres keeps its hash. `app-role.sql` only creates the role, so a change is an `ALTER ROLE`. In the same command, replace `DB_PASSWORD` the way item 4 does, then run Redeploy. Open connections keep working, and new ones can't connect with the old password.
 
