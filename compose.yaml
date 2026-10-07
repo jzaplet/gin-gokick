@@ -5,6 +5,7 @@ services:
       dockerfile: docker/production/Dockerfile
     env_file: .env
     environment:
+      APP_URL: https://${APP_DOMAIN:?}
       PORT: 8020
     labels:
       - dev.orbstack.domains=${APP_DOMAIN:?}
