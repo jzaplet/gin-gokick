@@ -52,7 +52,7 @@ The Sentry links below hold for sentry.io. A self-hosted Sentry has the same pag
 - **What the compose gets:** `IMAGE`, `VERSION` (the commit), `STACK`, `ROLE` (the services run on the nodes with `node.labels.role == ${ROLE}`, by default `app`), and every repository variable and secret by its name for `${…}`. A value written into `environment` shows in `docker service inspect`, so only configuration goes there.
 - **Secrets.** A top-level secret with `x-environment: <NAME>` becomes a Docker secret with the value of the repository secret `<NAME>`. Its name carries a hash of the value, so a new value deploys as a new secret.
   - `x-optional: true` beside it leaves the secret out when the repository lacks it, and the variable stays unset.
-  - The entrypoint of each service exports every file of `/run/secrets` as a variable of its name and then starts the original command, so the app needs no `_FILE` support.
+  - The entrypoint of `app` exports every file of `/run/secrets` as a variable of its name and then starts the app, so the app needs no `_FILE` support. `db` reads its passwords through `POSTGRES_PASSWORD_FILE` and `DB_PASSWORD_FILE`, which the PostgreSQL image and `app-role.sh` support.
   - The deploy refuses a stack in whose rendered compose the value of any repository secret appears. The compose therefore interpolates only repository variables, and `SENTRY_DSN`, `METRICS_USER` or `SMTP_USERNAME` are never secrets.
 - **A broken version.** The app updates `start-first` with `failure_action: rollback`. When the new version doesn't start or doesn't pass the healthcheck of the image on `/readyz`, Swarm brings the previous version back and the run fails. The database updates `stop-first`, since two PostgreSQL can't share one volume.
 - **The database role.** The first start of `db` on an empty volume runs `docker/postgres/initdb/app-role.sh`, which creates the role `DB_USERNAME` with `DB_PASSWORD` and the database `DB_NAME`.
@@ -283,7 +283,7 @@ The label `backup: pgbackrest` under `deploy.labels` of `db` asks the deploy for
 - The deploy sets `PGBACKREST_REPO1_PATH` to `/<stack>/db` and mounts the shared backup keys into `db` only. The keys must exist in the Swarm, or the deploy fails; a Swarm without them needs the label removed.
 - Only a PostgreSQL image with pgBackRest uses them. The default `postgres:18.6-alpine` ignores them, and the database runs without backups.
 
-To switch them on, set the variable `POSTGRES_IMAGE` to the PostgreSQL image with pgBackRest that `<infra-repo>` builds, delete the `entrypoint` of `db` in the compose, and run Deploy. That image exports the secrets in its own entrypoint and starts pgBackRest from it. The wrapper of the compose would skip that entrypoint, and nothing would archive.
+To switch them on, set the variable `POSTGRES_IMAGE` to the PostgreSQL image with pgBackRest that `<infra-repo>` builds and run Deploy. That image starts pgBackRest from its own entrypoint and leaves the secrets with a `_FILE` variable to PostgreSQL.
 
 ## 6. Prometheus
 

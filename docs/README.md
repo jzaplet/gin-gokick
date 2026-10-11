@@ -492,7 +492,7 @@ Each tool is switched on by its ID in the environment and runs without Google Ta
 **Docker Swarm.** `docker/production/compose.yaml` is the production stack: the app and PostgreSQL 18 on the nodes whose label `role` the deploy passes as `ROLE`. Shared GitHub Actions workflows build the image of every commit and deploy the stack with the image of the chosen commit.
 - The app sits on the stack's network, where it reaches `db`, and on the external network `edge`, where the reverse proxy and Prometheus reach it.
 - An update starts the new app before it stops the old one, and rolls back when the new one fails its healthcheck. PostgreSQL stops first, because two instances can't share its volume.
-- The passwords arrive as Docker secrets, so `docker service inspect` never shows them. The entrypoint exports every file of `/run/secrets` as a variable of its name, and the app reads them like any other variable.
+- The passwords arrive as Docker secrets, so `docker service inspect` never shows them. The entrypoint of `app` exports every file of `/run/secrets` as a variable of its name, and the app reads them like any other variable. PostgreSQL and `app-role.sh` read theirs through `POSTGRES_PASSWORD_FILE` and `DB_PASSWORD_FILE`.
 - Everything else comes from repository variables, or the compose fixes it (release mode, JSON logs, the environment `production`, the commit as the release).
 
 **Caddy and Cloudflare.** Cloudflare proxies the domain to Caddy, and Caddy proxies it over `edge` to the app. Caddy passes `CF-Connecting-IP` unchanged. For requests without it, the compose sets `TRUSTED_PROXIES` to the overlay address pool of the Swarm (`10.64.0.0/12`), so gin skips Caddy's address. A Swarm with another `--default-addr-pool` needs that range changed.
