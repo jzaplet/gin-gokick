@@ -81,10 +81,10 @@ export type MessageParams = {
     'home.feature.csrf.title': null;
     'home.feature.db_tests.text': null;
     'home.feature.db_tests.title': null;
+    'home.feature.deploy.text': null;
+    'home.feature.deploy.title': null;
     'home.feature.docker.text': null;
     'home.feature.docker.title': null;
-    'home.feature.dokploy.text': null;
-    'home.feature.dokploy.title': null;
     'home.feature.env.text': null;
     'home.feature.env.title': null;
     'home.feature.forms.text': null;
