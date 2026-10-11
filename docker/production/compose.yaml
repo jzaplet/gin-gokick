@@ -1,0 +1,128 @@
+services:
+  app:
+    image: ${IMAGE:?}
+    entrypoint: ["/bin/sh", "-c", "for f in /run/secrets/*; do [ -f \"$$f\" ] && export \"$${f##*/}=$$(cat \"$$f\")\"; done; exec /app/gokick"]
+    environment:
+      PORT: "8020"
+      GIN_MODE: release
+      APP_URL: https://${APP_DOMAIN:?}
+      TRUSTED_PROXIES: 10.64.0.0/12
+      DEFAULT_LOCALE: ${DEFAULT_LOCALE:?}
+      LOCALES: ${LOCALES:-}
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:?}
+      DB_USERNAME: ${DB_USERNAME:?}
+      DB_PARAMS: ?sslmode=disable&pool_max_conns=10
+      SMTP_ENABLED: ${SMTP_ENABLED:-false}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_SENDER_EMAIL: ${SMTP_SENDER_EMAIL:-}
+      SMTP_SENDER_NAME: ${SMTP_SENDER_NAME:-}
+      LOG_FORMAT: json
+      LOG_LEVEL: info
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_FRONTEND_DSN: ${SENTRY_FRONTEND_DSN:-}
+      SENTRY_ENVIRONMENT: production
+      SENTRY_RELEASE: ${VERSION:?}
+      METRICS_USER: ${METRICS_USER:-}
+      UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
+      GA4_MEASUREMENT_ID: ${GA4_MEASUREMENT_ID:-}
+      GOOGLE_ADS_ID: ${GOOGLE_ADS_ID:-}
+      GOOGLE_ADS_CONVERSIONS: ${GOOGLE_ADS_CONVERSIONS:-}
+      META_PIXEL_ID: ${META_PIXEL_ID:-}
+    secrets:
+      - source: db-password
+        target: DB_PASSWORD
+      - source: smtp-password
+        target: SMTP_PASSWORD
+      - source: metrics-password
+        target: METRICS_PASSWORD
+    networks:
+      - default
+      - edge
+    deploy:
+      placement:
+        constraints:
+          - node.labels.role == ${ROLE:?}
+      update_config:
+        order: start-first
+        failure_action: rollback
+        monitor: 30s
+      rollback_config:
+        order: start-first
+      restart_policy:
+        condition: any
+        delay: 5s
+      resources:
+        limits:
+          memory: 256M
+
+  db:
+    image: ${POSTGRES_IMAGE:-postgres:18.6-alpine}
+    entrypoint: ["/bin/sh", "-c", "for f in /run/secrets/*; do [ -f \"$$f\" ] && export \"$${f##*/}=$$(cat \"$$f\")\"; done; exec docker-entrypoint.sh postgres"]
+    environment:
+      POSTGRES_USER: postgres
+      DB_NAME: ${DB_NAME:?}
+      DB_TEST_NAME: ${DB_NAME:?}
+      DB_USERNAME: ${DB_USERNAME:?}
+    secrets:
+      - source: postgres-password
+        target: POSTGRES_PASSWORD
+      - source: db-password
+        target: DB_PASSWORD
+    configs:
+      - source: app-role-sql
+        target: /app-role.sql
+      - source: app-role-sh
+        target: /docker-entrypoint-initdb.d/app-role.sh
+        mode: 0555
+    volumes:
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    deploy:
+      labels:
+        backup: pgbackrest
+      placement:
+        constraints:
+          - node.labels.role == ${ROLE:?}
+      update_config:
+        order: stop-first
+        failure_action: rollback
+      restart_policy:
+        condition: any
+        delay: 5s
+      resources:
+        limits:
+          memory: 512M
+
+configs:
+  app-role-sql:
+    file: ../postgres/app-role.sql
+  app-role-sh:
+    file: ../postgres/initdb/app-role.sh
+
+secrets:
+  db-password:
+    x-environment: DB_PASSWORD
+  postgres-password:
+    x-environment: POSTGRES_PASSWORD
+  smtp-password:
+    x-environment: SMTP_PASSWORD
+    x-optional: true
+  metrics-password:
+    x-environment: METRICS_PASSWORD
+    x-optional: true
+
+volumes:
+  db-data:
+
+networks:
+  default:
+  edge:
+    external: true
