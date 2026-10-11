@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"gokick/app/core/testkit/collector"
 	"gokick/app/core/testkit/dotenv"
 	"gokick/app/core/testkit/logs"
 	"gokick/app/core/testkit/mailbox"
@@ -18,6 +19,12 @@ import (
 	"gokick/app/core/testkit/web"
 	"gokick/app/core/testkit/webroot"
 )
+
+func Collector(tb testing.TB) *collector.Collector {
+	tb.Helper()
+
+	return collector.Start(tb)
+}
 
 func Request(tb testing.TB, method, path string) *http.Request {
 	tb.Helper()

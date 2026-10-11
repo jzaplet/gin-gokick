@@ -90,7 +90,7 @@ docker build -f docker/production/Dockerfile . &&
 
 - **`app/main.go` only starts.** It reads the config, builds the parts and passes them on.
   - A decision, like which mail sender to use, belongs to a package (`mail.New`).
-  - Objects built from the config are built in `main.go` and passed to `router.NewRouter` as parameters. These are the logger, the reporter, the Sentry options of the browser, the pool, the languages, the public files and the mail sender.
+  - Objects built from the config are built in `main.go` and passed to `router.NewRouter` as parameters. These are the logger, the reporter, the Sentry options of the browser, the telemetry, the pool, the languages, the public files and the mail sender.
 - **`app/core/` is the reusable core.** It takes plain values, never the app config, and never imports `app/internal/` (depguard). A big core package becomes a facade over subpackages, like `vite` (`manifest`, `devserver`, `tags`), `locale` and `reporting`.
 - **`app/internal/<domain>/` holds only packages:**
   - `handler`, when the domain has routes. It holds one file per route and, when the route needs one, its test, nothing else; the helpers of the tests live in the test files.
@@ -110,6 +110,11 @@ docker build -f docker/production/Dockerfile . &&
   - An error the request survives goes to `reporting.Warning(c, err)`.
   - Every reported problem reaches the injected log too, not only Sentry, so it shows where `SENTRY_DSN` is empty. A new reporting path keeps that.
   - Log only through the injected `*slog.Logger` with a context (`InfoContext`, `LogAttrs`), with typed `slog.Attr` values and the key constants of `app/core/logging`.
+- **Traces.** Only `app/core/telemetry` imports OpenTelemetry (depguard). Everything else gets its instrumentation from there:
+  - an HTTP client to another service takes `telemetry.Transport`, so its calls join the request's trace;
+  - a route nobody needs in traces, like a health check, joins the list `tel.Middleware` gets in `router.go`;
+  - an attribute that can carry personal data joins `personal` in `app/core/telemetry`, which the export drops;
+  - a service that puts a secret into its URL, like the Telegram bot API, joins `secretInURL` there, whose URLs the export shortens to the origin.
 - **Undo.** When a later step of a handler fails, undo the earlier one through that domain's own function (`accounts.Delete` in `authhandler.Register`).
   - Run the undo on `context.WithoutCancel` with its own timeout.
   - Report both errors, the failed step first.
@@ -314,7 +319,7 @@ These were chosen with their costs in mind. Don't propose to undo them.
 - **Operations.**
   - `/metrics` runs on the app's port behind basic auth, not on its own port.
   - The access log keeps `/ping`, `/readyz` and `/metrics`.
-  - Logs are slog on stdout, JSON by default. There is no OpenTelemetry and no tracing backend: the trace ID comes from Sentry's `sentry-trace`.
+  - Logs are slog on stdout, JSON by default. Traces go through OpenTelemetry over OTLP/HTTP, and the trace ID of the log, Sentry and `X-Trace-Id` is the one of the server span.
 - **CSP and measurement.**
   - The CSP comes from our own middleware, with nonces, `strict-dynamic` and Trusted Types.
   - `img-src` and `connect-src` allow `https:`.

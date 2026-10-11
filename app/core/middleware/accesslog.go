@@ -37,6 +37,10 @@ func AccessLog(logger *slog.Logger) gin.HandlerFunc {
 			slog.Int(logging.KeyBytes, max(c.Writer.Size(), 0)),
 			logging.DurationMs(time.Since(start)),
 		}
+		if query := c.Request.URL.RawQuery; query != "" {
+			attrs = append(attrs, slog.String(logging.KeyQuery, query))
+		}
+
 		if len(c.Errors) > 0 {
 			attrs = append(attrs, slog.String(logging.KeyError, strings.Join(c.Errors.Errors(), "; ")))
 		}

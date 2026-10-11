@@ -57,6 +57,7 @@ The Sentry links below hold for sentry.io. A self-hosted Sentry has the same pag
 - **A broken version.** The app updates `start-first` with `failure_action: rollback`. When the new version doesn't start or doesn't pass the healthcheck of the image on `/readyz`, Swarm brings the previous version back and the run fails. The database updates `stop-first`, since two PostgreSQL can't share one volume, and a new app waits up to a minute for it.
 - **The database role.** The first start of `db` on an empty volume runs `docker/postgres/initdb/app-role.sh`, which creates the role `DB_USERNAME` with `DB_PASSWORD` and the database `DB_NAME`.
 - **Logs** need no step. Alloy of the infra sends the stdout of every container to Loki with the labels `service_namespace` (the stack) and `service_name` (the service without the stack), so the app logs under `{service_namespace="<stack>", service_name="app"}`.
+- **Traces** need no step either, when `<infra-repo>` runs an OTLP receiver named `otel` on `edge`. The compose sends them there with `service.namespace=<stack>` and `service.name=app`, and Tempo finds them by the `X-Trace-Id` of any response. The repository variable `OTEL_EXPORTER_OTLP_ENDPOINT` points them to another receiver, `OTEL_TRACES_SAMPLER_ARG` sends only a share, and the optional secret `OTEL_EXPORTER_OTLP_HEADERS` carries its key.
 
 ## What the person does
 
@@ -233,7 +234,7 @@ The shared Build passes the Dockerfile no build arguments and no build secret, s
    ```
 
    Mails stay off until `SMTP_ENABLED=true` with `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME` and `SMTP_SENDER_EMAIL`. The measurement tools turn on with their IDs.
-3. **The secrets.** The compose mounts `DB_PASSWORD` into the app and the database and `POSTGRES_PASSWORD` into the database, and both are required. `SMTP_PASSWORD` and `METRICS_PASSWORD` are optional. None of the four is ever a variable.
+3. **The secrets.** The compose mounts `DB_PASSWORD` into the app and the database and `POSTGRES_PASSWORD` into the database, and both are required. `SMTP_PASSWORD`, `METRICS_PASSWORD` and `OTEL_EXPORTER_OTLP_HEADERS` are optional. None of them is ever a variable.
 
    ```bash
    openssl rand -hex 24 | tr -d '\n' | gh secret set DB_PASSWORD --repo <repo>
@@ -392,7 +393,7 @@ With the person's permission, because an issue is created and an email arrives:
   - Then resolve the issue: `PUT <sentry-api>/api/0/organizations/<sentry-org>/issues/<issue id>/` with `{"status":"resolved"}`. The `<issue id>` is the `groupID` of the event.
 - **Frontend and backend errors joined.** In production this would need a database outage, so only on request. Locally it can be tried like this:
   - a binary built as in the image (`go build -trimpath`);
-  - the real DSNs and `SENTRY_ENVIRONMENT=development`;
+  - the real DSNs and `APP_ENVIRONMENT=development`;
   - a temporary Postgres that you stop after the start.
 
   `fetch('/readyz')` from the frontend then answers 503, and the backend error has the same `trace_id` as the frontend error from the same page.

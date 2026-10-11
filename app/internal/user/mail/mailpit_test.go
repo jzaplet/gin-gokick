@@ -12,7 +12,7 @@ import (
 	"gokick/app/core/testkit"
 	"gokick/app/core/vite"
 	"gokick/app/internal/shared/config"
-	"gokick/app/internal/shared/config/server"
+	"gokick/app/internal/shared/config/app"
 	"gokick/app/internal/shared/config/smtp"
 	"gokick/app/internal/shared/templates"
 	usermail "gokick/app/internal/user/mail"
@@ -23,7 +23,7 @@ import (
 func TestSendSamplesToMailpit(t *testing.T) {
 	testkit.LoadEnv(t)
 
-	site, err := server.Read()
+	site, err := app.Read()
 	if err != nil {
 		t.Fatal(err)
 	}

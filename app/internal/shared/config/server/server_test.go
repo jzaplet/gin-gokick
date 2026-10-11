@@ -11,8 +11,6 @@ func emptyEnv(t *testing.T) {
 	for _, key := range []string{"PORT", "GIN_MODE", "TRUSTED_PROXIES"} {
 		t.Setenv(key, "")
 	}
-
-	t.Setenv("APP_URL", "https://gokick.dev")
 }
 
 func TestDefaults(t *testing.T) {
@@ -27,8 +25,6 @@ func TestDefaults(t *testing.T) {
 		Port: 8020,
 
 		GinMode: "release",
-
-		URL: "https://gokick.dev",
 	}); reflect.DeepEqual(cfg, want) == false || cfg.Addr() != ":8020" {
 		t.Errorf("got %+v on %q, want %+v", cfg, cfg.Addr(), want)
 	}
@@ -38,7 +34,6 @@ func TestReadsTheEnvironment(t *testing.T) {
 	t.Setenv("PORT", "9000")
 	t.Setenv("GIN_MODE", "debug")
 	t.Setenv("TRUSTED_PROXIES", " 127.0.0.1 , 10.0.0.0/8,,::1 ")
-	t.Setenv("APP_URL", "http://gokick.local:8020/")
 
 	cfg, err := Read()
 	if err != nil {
@@ -51,8 +46,6 @@ func TestReadsTheEnvironment(t *testing.T) {
 		GinMode: "debug",
 
 		TrustedProxies: []string{"127.0.0.1", "10.0.0.0/8", "::1"},
-
-		URL: "http://gokick.local:8020",
 	}
 	if reflect.DeepEqual(cfg, want) == false || cfg.Addr() != ":9000" {
 		t.Errorf("got %+v on %q, want %+v", cfg, cfg.Addr(), want)
@@ -70,12 +63,6 @@ func TestRejectsInvalidValues(t *testing.T) {
 		{"unknown gin mode", "GIN_MODE", "production"},
 		{"host name as proxy", "TRUSTED_PROXIES", "127.0.0.1,localhost"},
 		{"prefix out of range", "TRUSTED_PROXIES", "10.0.0.0/33"},
-		{"no app url", "APP_URL", ""},
-		{"app url without a scheme", "APP_URL", "gokick.dev"},
-		{"app url of another scheme", "APP_URL", "ftp://gokick.dev"},
-		{"app url with a path", "APP_URL", "https://gokick.dev/cs"},
-		{"app url with a query", "APP_URL", "https://gokick.dev/?a=1"},
-		{"app url with a user", "APP_URL", "https://jan@gokick.dev"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

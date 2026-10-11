@@ -12,7 +12,7 @@ import (
 	"gokick/app/core/testkit"
 )
 
-func TestAccessLogShowsTheRouteNotTheTokenInThePath(t *testing.T) {
+func TestAccessLogShowsTheRouteAndTheQueryNotTheTokenInThePath(t *testing.T) {
 	logger, buf := testkit.CaptureLogs()
 	router := newTestRouter(t, logger)
 	router.GET("/dekujeme/:token", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
@@ -33,6 +33,8 @@ func TestAccessLogShowsTheRouteNotTheTokenInThePath(t *testing.T) {
 		"method": "GET",
 
 		"path": "/dekujeme/:token",
+
+		"query": "utm_source=x",
 
 		"status": 200.0,
 

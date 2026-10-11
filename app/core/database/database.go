@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
@@ -22,8 +23,15 @@ const (
 	retryDelay = time.Second
 )
 
-func Open(ctx context.Context, dsn string, wait time.Duration) (*pgxpool.Pool, error) {
-	pool, err := pgxpool.New(ctx, dsn)
+func Open(ctx context.Context, dsn string, wait time.Duration, tracer pgx.QueryTracer) (*pgxpool.Pool, error) {
+	cfg, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("database: %w", err)
+	}
+
+	cfg.ConnConfig.Tracer = tracer
+
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("database: %w", err)
 	}

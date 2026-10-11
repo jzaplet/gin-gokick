@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"runtime/debug"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -18,8 +17,6 @@ import (
 
 const recoveredKey = "reporting.recovered"
 
-const unversioned = "dev"
-
 type Reporter struct {
 	hub *sentry.Hub
 }
@@ -27,10 +24,6 @@ type Reporter struct {
 func New(dsn, environment, release string) (*Reporter, error) {
 	if dsn == "" {
 		return &Reporter{}, nil
-	}
-
-	if release == "" {
-		release = buildRevision()
 	}
 
 	return newReporter(&sentry.ClientOptions{Dsn: dsn, Environment: environment, Release: release})
@@ -114,16 +107,4 @@ func beforeSend(event *sentry.Event, _ *sentry.EventHint) *sentry.Event {
 	inapp.Mark(event)
 
 	return request.Scrub(event)
-}
-
-func buildRevision() string {
-	if info, ok := debug.ReadBuildInfo(); ok {
-		for _, setting := range info.Settings {
-			if setting.Key == "vcs.revision" && setting.Value != "" {
-				return setting.Value
-			}
-		}
-	}
-
-	return unversioned
 }

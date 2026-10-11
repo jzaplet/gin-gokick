@@ -93,6 +93,7 @@ export const startSentry = (app: App): void => {
         attachProps: false,
         dataCollection: { userInfo: false },
         integrations: [Sentry.browserTracingIntegration()],
+        propagateTraceparent: true,
         beforeSend: withoutFragments,
         beforeBreadcrumb: breadcrumbWithoutFragments,
     });

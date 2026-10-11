@@ -43,6 +43,7 @@ linters:
             - github.com/go-playground/validator/v10
             - github.com/google/uuid
             - github.com/joho/godotenv
+            - github.com/exaring/otelpgx
             - github.com/getsentry/sentry-go
             - github.com/jackc/pgx/v5
             - github.com/pressly/goose/v3
@@ -53,6 +54,11 @@ linters:
             - golang.org/x/text/language
             - golang.org/x/text/message
             - golang.org/x/text/number
+            - go.opentelemetry.io/contrib/instrumentation
+            - go.opentelemetry.io/otel
+            - go.opentelemetry.io/proto/otlp
+            - go/
+            - google.golang.org/protobuf
         core:
           files:
             - "**/app/core/**"
@@ -94,6 +100,23 @@ linters:
           deny:
             - pkg: github.com/go-playground/validator/v10
               desc: "bind and validate request bodies through core/api"
+        otel:
+          files:
+            - "!**/app/core/telemetry/**"
+            - "!**/app/core/testkit/collector/**"
+          deny:
+            - pkg: go.opentelemetry.io
+              desc: "trace through core/telemetry, whose factories instrument gin, pgx and HTTP clients"
+            - pkg: github.com/exaring/otelpgx
+              desc: "trace queries through core/telemetry"
+        otlp:
+          files:
+            - "!**/app/core/testkit/collector/**"
+          deny:
+            - pkg: go.opentelemetry.io/proto/otlp
+              desc: "only the test collector of core/testkit decodes OTLP"
+            - pkg: google.golang.org/protobuf
+              desc: "only the test collector of core/testkit decodes OTLP"
         prometheus:
           files:
             - "!**/app/core/metrics/**"
@@ -231,6 +254,9 @@ linters:
         linters:
           - funlen
           - gocognit
+      - path: ^app/main\.go$
+        linters:
+          - funlen
       - path: ^locale/[a-z]{2}_[A-Z]{2}\.go$
         text: "file-length-limit:"
         linters:

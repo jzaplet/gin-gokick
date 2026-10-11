@@ -24,7 +24,7 @@ This document describes how the parts work and why. AGENTS.md says how to change
 - [Languages and texts](#languages-and-texts)
 - [Frontend](#frontend)
 - [Security](#security)
-- [Logs, errors and metrics](#logs-errors-and-metrics)
+- [Logs, traces, errors and metrics](#logs-traces-errors-and-metrics)
 - [Measurement and consent](#measurement-and-consent)
 - [Production](#production)
 - [Tests](#tests)
@@ -53,8 +53,8 @@ go run ./app            # in a second terminal: http://localhost:8020
 
 | Path | What it holds |
 | --- | --- |
-| `app/main.go` | the start: config, logger, languages and their dictionaries, mail sender, Sentry, database with migrations, router, server with graceful shutdown |
-| `app/core/` | the reusable core: HTTP server, middleware, CSP, API envelope, grids, views, page URLs, Vite, static files, locales, ICU, mail, database, password hashing, session cookie and signed-in user, rate limit, logging, Sentry, metrics, health checks, test helpers |
+| `app/main.go` | the start: config, logger, languages and their dictionaries, mail sender, traces, Sentry, database with migrations, router, server with graceful shutdown |
+| `app/core/` | the reusable core: HTTP server, middleware, CSP, API envelope, grids, views, page URLs, Vite, static files, locales, ICU, mail, database, password hashing, session cookie and signed-in user, rate limit, logging, traces, Sentry, metrics, health checks, test helpers |
 | `app/internal/` | this app, one folder per domain (`auth`, `user`, `home`, `tracking`) plus `shared`: config, router, templates, CSP services, the handlers of no domain, the locale images and the test router |
 | `locale/` | the dictionaries, one Go map per locale |
 | `views/` | Go templates: the pages, their components and the mails |
@@ -75,12 +75,17 @@ The app reads the environment, and `.env` fills in what the environment lacks. `
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `APP_URL` | required | public address without a path (`https://gokick.dev`); mails build their links and images from it |
+| `APP_ENVIRONMENT`, `APP_RELEASE` | `production`, git revision of the build or `dev` | environment and release of the instance, shared by Sentry and the traces |
 | `DEFAULT_LOCALE` | required | default language as a POSIX locale; `/` is always in it |
 | `LOCALES` | `DEFAULT_LOCALE` | allowed locales, comma-separated (`cs_CZ,en_US`) |
 | `PORT` | `8020` | HTTP port |
 | `GIN_MODE` | `release` | `debug`, `release` or `test` |
 | `TRUSTED_PROXIES` | empty | IPs and CIDRs trusted for `X-Forwarded-For` |
 | `LOG_FORMAT`, `LOG_LEVEL` | `json`, `info` | log format (`json`, `text`) and lowest level (`debug` to `error`) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | empty | base address of an OTLP/HTTP receiver; the traces go to its `/v1/traces`, and empty sends none |
+| `OTEL_EXPORTER_OTLP_HEADERS` | empty | headers of every export (`Authorization=Basic%20…`), with percent-encoded values |
+| `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES` | `app`, empty | `service.name`, and further attributes of every trace, above all `service.namespace` |
+| `OTEL_TRACES_SAMPLER_ARG` | `1` | share of the traces sent, from 0 to 1 |
 | `DB_HOST`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` | required | PostgreSQL server, database, role and password of the app |
 | `DB_PORT`, `DB_PARAMS` | `5432`, empty | port, and connection parameters as a query (`?sslmode=disable&pool_max_conns=10`) |
 | `DB_TEST_NAME`, `DB_TEST_PARAMS` | empty | test database for `go test`; compose requires `DB_TEST_NAME` and creates it |
@@ -89,7 +94,6 @@ The app reads the environment, and `.env` fills in what the environment lacks. `
 | `SMTP_PORT` | `587` | SMTP port; port 465 (TLS from the first byte) is refused |
 | `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_SENDER_NAME` | empty | SMTP account (both or neither) and sender name |
 | `SENTRY_DSN`, `SENTRY_FRONTEND_DSN` | empty | Sentry for the backend and the browser; empty turns each off |
-| `SENTRY_ENVIRONMENT`, `SENTRY_RELEASE` | `production`, git revision of the build or `dev` | environment and release in Sentry |
 | `METRICS_USER`, `METRICS_PASSWORD` | empty | account for `/metrics`, both or neither; empty makes `/metrics` answer 404 |
 | `UMAMI_WEBSITE_ID` | empty | Umami, which needs no consent |
 | `GA4_MEASUREMENT_ID`, `GOOGLE_ADS_ID`, `META_PIXEL_ID` | empty | tools that wait for cookie consent |
@@ -415,12 +419,12 @@ It also writes a sample of numbers to `tests/assets/i18n/numbers`, against which
 
 **CSRF.** `middleware.CSRF()` refuses a cross-origin POST, PUT, PATCH or DELETE with 403, through `http.CrossOriginProtection`, so forms need no tokens. It lets GET, HEAD and OPTIONS through.
 
-## Logs, errors and metrics
+## Logs, traces, errors and metrics
 
 **Logs.**
 - The app logs through one `*slog.Logger` to stdout, as JSON in production.
-- Every request gets a `trace_id`, taken from the frontend's `sentry-trace` or generated, and returned in `X-Trace-Id`. A route behind the session adds `user_id`.
-- **The access log** writes the method, the route pattern in `path`, the status, the IP, the size, `duration_ms`, the reported errors and the warnings. A token in the path of a matched route stays out. A request no route matched (an unknown path, a public file) logs its real path. The query is never logged.
+- Every request logs the `trace_id` of its trace (see Traces), which `X-Trace-Id` returns too. A route behind the session adds `user_id`.
+- **The access log** writes the method, the route pattern in `path`, the status, the IP, the size, `duration_ms`, the reported errors and the warnings. A token in the path of a matched route stays out. A request no route matched (an unknown path, a public file) logs its real path. The query goes into `query`, because tokens never travel in it (see Measurement and consent).
   - 5xx and panics log at `error`, and a warning without 5xx at `warn`.
 - **Lint keeps one path.** It forbids:
   - `slog.New` outside `app/core/logging`;
@@ -430,6 +434,15 @@ It also writes a sample of numbers to `tests/assets/i18n/numbers`, against which
   - gin's logger and recovery;
   - logs without a context;
   - keys without a constant.
+
+**Traces.** `app/core/telemetry` sends them through OpenTelemetry over OTLP/HTTP to `OTEL_EXPORTER_OTLP_ENDPOINT`.
+- **One trace ID.** Every request belongs to a trace: the one of an incoming W3C `traceparent`, else of the frontend's `sentry-trace`, else a new one. The log, the Sentry event, the span and `X-Trace-Id` carry the same ID, with telemetry off too.
+- **Spans.** `otelgin` opens a server span named by the method and the route pattern. `otelpgx` adds a span per query, and `telemetry.Transport` one per outgoing request, which carries `traceparent` on.
+- **What is never sent:** `/ping`, `/readyz`, `/metrics`, public files and unknown paths. They keep their trace ID.
+- **What the spans carry.** The server span has the route pattern, the query and the `User-Agent`. A wrapper drops the client's IP and port and the real path before the export; the IP is in the access log line with the same `trace_id`. An outgoing request keeps its full URL with the query, except a host that puts a secret into the URL (`api.telegram.org`), which keeps only its origin. A query span carries its SQL, never its parameters.
+- **Sampling.** `OTEL_TRACES_SAMPLER_ARG` decides once per trace by its ID. It ignores the sampled flag of a remote parent, because Sentry in the browser sends every `traceparent` as not sampled.
+- **Off without an endpoint.** Without `OTEL_EXPORTER_OTLP_ENDPOINT` the app sends nothing, whatever other `OTEL_*` variable is set.
+- **Errors of the export** go to the log as warnings, and telemetry never stops the start. At shutdown the app sends what is left, for at most 2 s.
 
 **Sentry.**
 - `SENTRY_DSN` turns it on. Every panic and every 5xx with a reported error goes there, and several errors of one request form one event.
@@ -443,7 +456,7 @@ It also writes a sample of numbers to `tests/assets/i18n/numbers`, against which
 - **In the browser** `SENTRY_FRONTEND_DSN` starts `@sentry/vue` in the SPA.
   - It reports uncaught and Vue errors, and every CSP violation outside browser extensions as a warning.
   - It drops the fragment from every URL.
-  - It sends `sentry-trace` and `baggage` with each own-origin `fetch`, so a backend error joins the frontend's trace.
+  - It sends `sentry-trace`, `baggage` and `traceparent` with each own-origin `fetch`, so a backend error and its spans join the frontend's trace.
   - It measures no performance and never infers the visitor's IP.
 - **Source maps** are uploaded by the Docker build, only with the build secret `SENTRY_AUTH_TOKEN`, and then deleted from the image.
 
@@ -479,13 +492,13 @@ Each tool is switched on by its ID in the environment and runs without Google Ta
   - The sign-up sends the email hashed with SHA-256 to Ads and Meta, and never in plain text.
   - In Google Ads, the conversion needs "Enhanced conversions" on.
   - The privacy policy must mention it.
-- **Queries reach every tool.** The query of an address goes to every tool and to Sentry.
+- **Queries reach every tool.** The query of an address goes to every tool, to Sentry, to the access log and to the traces.
 - **Hotjar** is not supported, because it can't run under Trusted Types.
 
 ## Production
 
 **The Docker image.** `docker/production/Dockerfile` builds the frontend in `node:24-alpine` and the binary in `golang:1.26-alpine`, and runs it on Alpine as the user `gokick` (uid 1000) on port 8020.
-- The build needs the `.git` folder, a shallow clone is enough, because the binary carries the commit as its Sentry release.
+- The build needs the `.git` folder, a shallow clone is enough, because the binary carries the commit as its release.
 - Its `assets` stage copies only what the frontend build needs.
 - The healthcheck asks `/readyz` every 30 s.
 
@@ -497,7 +510,7 @@ Each tool is switched on by its ID in the environment and runs without Google Ta
 
 **Caddy and Cloudflare.** Cloudflare proxies the domain to Caddy, and Caddy proxies it over `edge` to the app. Caddy passes `CF-Connecting-IP` unchanged. For requests without it, the compose sets `TRUSTED_PROXIES` to the overlay address pool of the Swarm (`10.64.0.0/12`), so gin skips Caddy's address. A Swarm with another `--default-addr-pool` needs that range changed.
 
-**Logs and metrics.** Alloy sends the logs of every container to Loki with the stack and the service as labels, so the app needs no setup for them. Prometheus reads `/metrics` over `edge` with its own scrape job.
+**Logs, traces and metrics.** Alloy sends the logs of every container to Loki with the stack and the service as labels, so the app needs no setup for them. The compose sends the traces to `http://otel:4318`, the OTLP receiver on `edge`, with the stack as `service.namespace`; the repository variable `OTEL_EXPORTER_OTLP_ENDPOINT` points them elsewhere. Prometheus reads `/metrics` over `edge` with its own scrape job.
 
 **The first deploy.** [first-deploy.md](first-deploy.md) walks through it: Cloudflare and Caddy, Sentry, the workflows with their variables and secrets, the deploy, backups, Prometheus, Grafana and the checks.
 

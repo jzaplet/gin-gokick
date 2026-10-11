@@ -14,6 +14,7 @@ import (
 	"gokick/app/core/logging"
 	"gokick/app/core/mail"
 	"gokick/app/core/reporting"
+	"gokick/app/core/telemetry"
 	"gokick/app/internal/shared/config"
 	"gokick/app/internal/shared/router"
 	dictionaries "gokick/locale"
@@ -23,6 +24,8 @@ import (
 
 const (
 	reportFlushTimeout = 2 * time.Second
+
+	telemetryFlushTimeout = 2 * time.Second
 
 	databaseWait = time.Minute
 )
@@ -43,6 +46,9 @@ func run() int {
 	}
 
 	logger := logging.New(os.Stdout, cfg.Log.Format, cfg.Log.Level)
+
+	tel := telemetry.New(cfg.Telemetry, cfg.App.Environment, cfg.App.Release, logger)
+	defer tel.Shutdown(telemetryFlushTimeout)
 
 	locales, err := locale.New(cfg.Locale.Default, cfg.Locale.Locales)
 	if err != nil {
@@ -72,7 +78,7 @@ func run() int {
 		logger.WarnContext(ctx, "mail is off, SMTP_ENABLED is not true")
 	}
 
-	reporter, err := reporting.New(cfg.Sentry.DSN, cfg.Sentry.Environment, cfg.Sentry.Release)
+	reporter, err := reporting.New(cfg.Sentry.DSN, cfg.App.Environment, cfg.App.Release)
 	if err != nil {
 		logger.ErrorContext(ctx, "cannot start error reporting", logging.Err(err))
 
@@ -80,9 +86,9 @@ func run() int {
 	}
 	defer reporter.Flush(reportFlushTimeout)
 
-	browser := reporting.NewBrowser(cfg.Sentry.FrontendDSN, cfg.Sentry.Environment, cfg.Sentry.Release)
+	browser := reporting.NewBrowser(cfg.Sentry.FrontendDSN, cfg.App.Environment, cfg.App.Release)
 
-	pool, err := database.Open(ctx, cfg.Database.URL(), databaseWait)
+	pool, err := database.Open(ctx, cfg.Database.URL(), databaseWait, tel.QueryTracer())
 	if err != nil {
 		logger.ErrorContext(ctx, "cannot connect to the database", logging.Err(err))
 
@@ -96,7 +102,7 @@ func run() int {
 		return 1
 	}
 
-	engine, err := router.NewRouter(cfg, logger, reporter, browser, pool, locales, public.FS, sender)
+	engine, err := router.NewRouter(cfg, logger, reporter, browser, tel, pool, locales, public.FS, sender)
 	if err != nil {
 		logger.ErrorContext(ctx, "cannot build the router", logging.Err(err))
 
