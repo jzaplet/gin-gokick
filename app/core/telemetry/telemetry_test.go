@@ -7,12 +7,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"gokick/app/core/database"
 	"gokick/app/core/httpserver"
 	"gokick/app/core/telemetry"
 	"gokick/app/core/testkit"
@@ -22,7 +24,7 @@ const parentTrace = "4bf92f3577b34da6a3ce929d0e0e4736"
 
 var traceID = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
-func TestShutdownSendsTheSpansToTheTracesPath(t *testing.T) {
+func TestShutdownSendsSpansAndMetricsToTheirPaths(t *testing.T) {
 	collector := testkit.Collector(t)
 	cfg := telemetry.Config{
 		Endpoint: collector.URL + "/otlp/",
@@ -41,9 +43,13 @@ func TestShutdownSendsTheSpansToTheTracesPath(t *testing.T) {
 	res := testkit.Serve(newRouter(t, tel), testkit.Request(t, http.MethodGet, "/notes/7"))
 	tel.Shutdown(5 * time.Second)
 
-	requests := collector.Requests()
-	if len(requests) != 1 || requests[0].Path != "/otlp/v1/traces" || requests[0].Header.Get("Authorization") != "Bearer token" {
-		t.Fatalf("requests %+v", requests)
+	paths := map[string]bool{}
+	for _, request := range collector.Requests() {
+		paths[request.Path] = request.Header.Get("Authorization") == "Bearer token"
+	}
+
+	if len(paths) != 2 || paths["/otlp/v1/traces"] == false || paths["/otlp/v1/metrics"] == false {
+		t.Fatalf("paths and their authorization %v", paths)
 	}
 
 	spans := collector.Spans()
@@ -51,9 +57,155 @@ func TestShutdownSendsTheSpansToTheTracesPath(t *testing.T) {
 		t.Fatalf("spans %+v, X-Trace-Id %s", spans, res.Header().Get("X-Trace-Id"))
 	}
 
-	resource := spans[0].Resource
-	if resource["service.name"] != "app" || resource["service.namespace"] != "shop" || resource["service.version"] != "v1" || resource["deployment.environment.name"] != "staging" {
-		t.Errorf("resource %v", resource)
+	points := collector.Latest("http.server.request.duration")
+	if len(points) == 0 {
+		t.Fatal("no request metrics")
+	}
+
+	for _, resource := range []map[string]string{spans[0].Resource, points[0].Resource} {
+		if resource["service.name"] != "app" || resource["service.namespace"] != "shop" || resource["service.version"] != "v1" || resource["deployment.environment.name"] != "staging" {
+			t.Errorf("resource %v", resource)
+		}
+	}
+}
+
+func TestEveryStartIsAnInstanceOfItsOwn(t *testing.T) {
+	collector := testkit.Collector(t)
+
+	for _, attributes := range []map[string]string{nil, nil, {"service.instance.id": "app-1"}} {
+		tel := telemetry.New(telemetry.Config{
+			Endpoint: collector.URL,
+
+			ServiceName: "app",
+
+			Attributes: attributes,
+
+			SampleRatio: 1,
+		}, "test", "v1", testkit.DiscardLogs())
+
+		testkit.Serve(newRouter(t, tel), testkit.Request(t, http.MethodGet, "/notes/1"))
+		tel.Shutdown(5 * time.Second)
+	}
+
+	var instances []string
+	for _, span := range collector.Spans() {
+		instances = append(instances, span.Resource["service.instance.id"])
+	}
+
+	if len(instances) != 3 || instances[0] == "" || instances[0] == instances[1] || instances[2] != "app-1" {
+		t.Errorf("instances %v", instances)
+	}
+}
+
+func TestMetricsCountRequestsByTheirRoutePattern(t *testing.T) {
+	collector := testkit.Collector(t)
+	tel := start(t, collector.URL, testkit.DiscardLogs())
+	router := newRouter(t, tel)
+
+	for _, path := range []string{"/notes/7", "/notes/8", "/readyz", "/missing"} {
+		req := testkit.Request(t, http.MethodGet, path)
+		req.Host = "forged.example"
+		req.Header.Set("User-Agent", "forged-agent")
+		testkit.Serve(router, req)
+	}
+
+	tel.Shutdown(5 * time.Second)
+
+	counts := map[string]uint64{}
+
+	for _, point := range collector.Latest("http.server.request.duration") {
+		for key, value := range point.Attributes {
+			if strings.Contains(value, "forged") || strings.Contains(value, "/notes/7") || strings.Contains(value, "/missing") {
+				t.Errorf("request metric carries %s=%s", key, value)
+			}
+		}
+
+		counts[point.Attributes["http.request.method"]+" "+point.Attributes["http.route"]+" "+point.Attributes["http.response.status_code"]] += point.Count
+	}
+
+	if counts["GET /notes/:id 204"] != 2 || counts["GET /readyz 200"] != 1 || counts["GET  404"] != 1 {
+		t.Errorf("requests by route %v", counts)
+	}
+
+	names := collector.Metrics()
+	for _, dropped := range []string{"http.server.request.body.size", "http.server.response.body.size"} {
+		if slices.Contains(names, dropped) {
+			t.Errorf("%s was sent", dropped)
+		}
+	}
+
+	for _, runtime := range []string{"go.goroutine.count", "go.memory.used"} {
+		if slices.Contains(names, runtime) == false {
+			t.Errorf("%s is missing from %v", runtime, names)
+		}
+	}
+}
+
+func TestMetricsStayCumulativeWhenTheEnvironmentPrefersDeltas(t *testing.T) {
+	t.Setenv("OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE", "delta")
+	collector := testkit.Collector(t)
+	tel := start(t, collector.URL, testkit.DiscardLogs())
+
+	testkit.Serve(newRouter(t, tel), testkit.Request(t, http.MethodGet, "/notes/1"))
+	tel.Shutdown(5 * time.Second)
+
+	if points := collector.Latest("http.server.request.duration"); len(points) == 0 || points[0].Delta {
+		t.Errorf("points %+v", points)
+	}
+}
+
+func TestShutdownSendsTheMetricsWhileTheTracesHang(t *testing.T) {
+	metrics := make(chan string, 1)
+	release := make(chan struct{})
+	hanging := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/v1/traces") {
+			<-release
+
+			return
+		}
+
+		metrics <- r.URL.Path
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(hanging.Close)
+	t.Cleanup(func() { close(release) })
+
+	tel := start(t, hanging.URL, testkit.DiscardLogs())
+
+	testkit.Serve(newRouter(t, tel), testkit.Request(t, http.MethodGet, "/notes/1"))
+	tel.Shutdown(500 * time.Millisecond)
+
+	select {
+	case <-metrics:
+	default:
+		t.Error("no metrics were sent")
+	}
+}
+
+func TestPoolAndQueryMetricsAreSent(t *testing.T) {
+	collector := testkit.Collector(t)
+	tel := start(t, collector.URL, testkit.DiscardLogs())
+
+	pool, err := database.Open(t.Context(), testkit.Database(t), 0, tel.QueryTracer())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(pool.Close)
+	tel.ObservePool(pool)
+
+	if _, err := pool.Exec(t.Context(), "SELECT 1"); err != nil {
+		t.Fatal(err)
+	}
+
+	tel.Shutdown(5 * time.Second)
+
+	names := collector.Metrics()
+	for _, want := range []string{"pgxpool.total_connections", "db.client.operation.duration"} {
+		if slices.Contains(names, want) == false {
+			t.Errorf("%s is missing from %v", want, names)
+		}
 	}
 }
 

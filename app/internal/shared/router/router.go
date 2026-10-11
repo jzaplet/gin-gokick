@@ -11,7 +11,6 @@ import (
 	"gokick/app/core/httpserver"
 	"gokick/app/core/locale"
 	"gokick/app/core/mail"
-	"gokick/app/core/metrics"
 	"gokick/app/core/middleware"
 	"gokick/app/core/reporting"
 	"gokick/app/core/static"
@@ -41,13 +40,10 @@ func NewRouter(
 		return nil, err
 	}
 
-	requestMetrics := metrics.New()
-
-	router.Use(tel.Middleware("/ping", "/readyz", "/metrics")...)
+	router.Use(tel.Middleware("/ping", "/readyz")...)
 	router.Use(
 		reporter.Middleware(),
 		middleware.AccessLog(logger),
-		requestMetrics.Middleware(),
 		middleware.Recovery(logger, reporter),
 		middleware.RequestTimeout(requestTimeout),
 		middleware.SecurityHeaders(csp.Policy(&cfg.Tracking)),
@@ -71,7 +67,7 @@ func NewRouter(
 
 	mailer := mail.NewMailer(renderer, sender, cfg.App.URL)
 	notFound := sharedhandler.NotFound(renderer, locales)
-	routes(router, cfg, locales, renderer, requestMetrics, pool, mailer, notFound)
+	routes(router, locales, renderer, pool, mailer, notFound)
 
 	assets.Register(router)
 	files.Register(router, notFound)

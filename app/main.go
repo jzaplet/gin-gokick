@@ -96,6 +96,8 @@ func run() int {
 	}
 	defer pool.Close()
 
+	tel.ObservePool(pool)
+
 	if err = database.Migrate(ctx, pool, migrations.FS, logger); err != nil {
 		logger.ErrorContext(ctx, "cannot migrate the database", logging.Err(err))
 

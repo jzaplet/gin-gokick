@@ -37,7 +37,7 @@ func TestReadsTheEnvironment(t *testing.T) {
 	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel:4318")
 	t.Setenv("OTEL_EXPORTER_OTLP_HEADERS", "Authorization=Basic%20a2V5, X-Scope = team")
 	t.Setenv("OTEL_SERVICE_NAME", "worker")
-	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=shop")
+	t.Setenv("OTEL_RESOURCE_ATTRIBUTES", "service.namespace=shop,service.instance.id=app-1")
 	t.Setenv("OTEL_TRACES_SAMPLER_ARG", "0.25")
 
 	cfg, err := Read()
@@ -52,7 +52,7 @@ func TestReadsTheEnvironment(t *testing.T) {
 
 		ServiceName: "worker",
 
-		Attributes: map[string]string{"service.namespace": "shop"},
+		Attributes: map[string]string{"service.namespace": "shop", "service.instance.id": "app-1"},
 
 		SampleRatio: 0.25,
 	}

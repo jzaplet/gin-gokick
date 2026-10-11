@@ -47,7 +47,6 @@ linters:
             - github.com/getsentry/sentry-go
             - github.com/jackc/pgx/v5
             - github.com/pressly/goose/v3
-            - github.com/prometheus/client_golang
             - golang.org/x/crypto/argon2
             - golang.org/x/net/html
             - golang.org/x/text/feature/plural
@@ -117,12 +116,6 @@ linters:
               desc: "only the test collector of core/testkit decodes OTLP"
             - pkg: google.golang.org/protobuf
               desc: "only the test collector of core/testkit decodes OTLP"
-        prometheus:
-          files:
-            - "!**/app/core/metrics/**"
-          deny:
-            - pkg: github.com/prometheus/client_golang
-              desc: "record metrics through core/metrics"
     forbidigo:
       analyze-types: true
       forbid:

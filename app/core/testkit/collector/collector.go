@@ -1,16 +1,21 @@
 package collector
 
 import (
+	"compress/gzip"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 
+	colmetricspb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
 	coltracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
+	metricspb "go.opentelemetry.io/proto/otlp/metrics/v1"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -22,6 +27,20 @@ type Span struct {
 	ParentSpanID string
 
 	Attributes map[string]string
+
+	Resource map[string]string
+}
+
+type Point struct {
+	Metric string
+
+	Attributes map[string]string
+
+	Count uint64
+
+	Value float64
+
+	Delta bool
 
 	Resource map[string]string
 }
@@ -40,6 +59,8 @@ type Collector struct {
 	requests []Request
 
 	spans []Span
+
+	points []Point
 }
 
 func Start(tb testing.TB) *Collector {
@@ -67,25 +88,99 @@ func (c *Collector) Spans() []Span {
 	return append([]Span(nil), c.spans...)
 }
 
+func (c *Collector) Latest(metric string) []Point {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var latest []Point
+
+	series := map[string]int{}
+
+	for _, point := range c.points {
+		if point.Metric != metric {
+			continue
+		}
+
+		key := fmt.Sprint(point.Resource, point.Attributes)
+		if index, found := series[key]; found {
+			latest[index] = point
+
+			continue
+		}
+
+		series[key] = len(latest)
+		latest = append(latest, point)
+	}
+
+	return latest
+}
+
+func (c *Collector) Metrics() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var names []string
+
+	seen := map[string]bool{}
+	for _, point := range c.points {
+		if seen[point.Metric] == false {
+			seen[point.Metric] = true
+			names = append(names, point.Metric)
+		}
+	}
+
+	return names
+}
+
 func (c *Collector) receive(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
+	body, err := read(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 
 		return
 	}
 
-	var export coltracepb.ExportTraceServiceRequest
-	if err := proto.Unmarshal(body, &export); err != nil {
+	if strings.HasSuffix(r.URL.Path, "/v1/metrics") {
+		err = c.receiveMetrics(body)
+	} else {
+		err = c.receiveSpans(body)
+	}
+
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 
 		return
 	}
 
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	c.requests = append(c.requests, Request{Path: r.URL.Path, Header: r.Header.Clone()})
+	c.mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/x-protobuf")
+	w.WriteHeader(http.StatusOK)
+}
+
+func read(r *http.Request) ([]byte, error) {
+	if r.Header.Get("Content-Encoding") != "gzip" {
+		return io.ReadAll(r.Body)
+	}
+
+	unzipped, err := gzip.NewReader(r.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return io.ReadAll(unzipped)
+}
+
+func (c *Collector) receiveSpans(body []byte) error {
+	var export coltracepb.ExportTraceServiceRequest
+	if err := proto.Unmarshal(body, &export); err != nil {
+		return err
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	for _, resourceSpans := range export.GetResourceSpans() {
 		resource := values(resourceSpans.GetResource().GetAttributes())
@@ -106,8 +201,70 @@ func (c *Collector) receive(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/x-protobuf")
-	w.WriteHeader(http.StatusOK)
+	return nil
+}
+
+func (c *Collector) receiveMetrics(body []byte) error {
+	var export colmetricspb.ExportMetricsServiceRequest
+	if err := proto.Unmarshal(body, &export); err != nil {
+		return err
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for _, resourceMetrics := range export.GetResourceMetrics() {
+		resource := values(resourceMetrics.GetResource().GetAttributes())
+		for _, scopeMetrics := range resourceMetrics.GetScopeMetrics() {
+			for _, metric := range scopeMetrics.GetMetrics() {
+				c.points = append(c.points, points(metric, resource)...)
+			}
+		}
+	}
+
+	return nil
+}
+
+func points(metric *metricspb.Metric, resource map[string]string) []Point {
+	var found []Point
+
+	delta := metricspb.AggregationTemporality_AGGREGATION_TEMPORALITY_DELTA
+
+	for _, point := range metric.GetHistogram().GetDataPoints() {
+		found = append(found, Point{
+			Metric: metric.GetName(),
+
+			Attributes: values(point.GetAttributes()),
+
+			Count: point.GetCount(),
+
+			Delta: metric.GetHistogram().GetAggregationTemporality() == delta,
+
+			Resource: resource,
+		})
+	}
+
+	numbers := append(metric.GetSum().GetDataPoints(), metric.GetGauge().GetDataPoints()...)
+	for _, point := range numbers {
+		value := point.GetAsDouble()
+		if _, integer := point.GetValue().(*metricspb.NumberDataPoint_AsInt); integer {
+			value = float64(point.GetAsInt())
+		}
+
+		found = append(found, Point{
+			Metric: metric.GetName(),
+
+			Attributes: values(point.GetAttributes()),
+
+			Value: value,
+
+			Delta: metric.GetSum().GetAggregationTemporality() == delta,
+
+			Resource: resource,
+		})
+	}
+
+	return found
 }
 
 func values(attributes []*commonpb.KeyValue) map[string]string {

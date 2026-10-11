@@ -27,10 +27,9 @@ services:
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_FRONTEND_DSN: ${SENTRY_FRONTEND_DSN:-}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel:4318}
-      OTEL_SERVICE_NAME: app
-      OTEL_RESOURCE_ATTRIBUTES: service.namespace=${STACK:?}
+      OTEL_SERVICE_NAME: "{{.Service.Name}}"
+      OTEL_RESOURCE_ATTRIBUTES: "service.namespace=${STACK:?},service.instance.id={{.Task.Name}}"
       OTEL_TRACES_SAMPLER_ARG: ${OTEL_TRACES_SAMPLER_ARG:-1}
-      METRICS_USER: ${METRICS_USER:-}
       UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
       GA4_MEASUREMENT_ID: ${GA4_MEASUREMENT_ID:-}
       GOOGLE_ADS_ID: ${GOOGLE_ADS_ID:-}
@@ -41,8 +40,6 @@ services:
         target: DB_PASSWORD
       - source: smtp-password
         target: SMTP_PASSWORD
-      - source: metrics-password
-        target: METRICS_PASSWORD
       - source: otel-exporter-otlp-headers
         target: OTEL_EXPORTER_OTLP_HEADERS
     networks:
@@ -121,9 +118,6 @@ secrets:
     x-environment: POSTGRES_PASSWORD
   smtp-password:
     x-environment: SMTP_PASSWORD
-    x-optional: true
-  metrics-password:
-    x-environment: METRICS_PASSWORD
     x-optional: true
   otel-exporter-otlp-headers:
     x-environment: OTEL_EXPORTER_OTLP_HEADERS

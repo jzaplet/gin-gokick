@@ -1,6 +1,6 @@
 {
   "uid": "<projectname>",
-  "title": "<domain> - aplikace",
+  "title": "<domain> - app",
   "tags": [
     "<projectname>",
     "go",
@@ -17,45 +17,45 @@
     "list": [
       {
         "name": "datasource",
-        "label": "Zdroj dat",
+        "label": "Data source",
         "type": "datasource",
         "query": "prometheus",
         "current": {},
         "hide": 0
       },
       {
-        "name": "job",
-        "label": "Job",
+        "name": "project",
+        "label": "Project",
         "type": "query",
         "datasource": {
           "type": "prometheus",
           "uid": "${datasource}"
         },
         "query": {
-          "query": "label_values(up, job)",
-          "refId": "job"
+          "query": "label_values(http_server_request_duration_seconds_count, service_namespace)",
+          "refId": "project"
         },
-        "definition": "label_values(up, job)",
+        "definition": "label_values(http_server_request_duration_seconds_count, service_namespace)",
         "refresh": 1,
         "current": {
-          "text": "<projectname>",
-          "value": "<projectname>"
+          "text": "<stack>",
+          "value": "<stack>"
         },
         "sort": 1
       },
       {
         "name": "route",
-        "label": "Routa",
+        "label": "Route",
         "type": "query",
         "datasource": {
           "type": "prometheus",
           "uid": "${datasource}"
         },
         "query": {
-          "query": "label_values(http_requests_total{job=\"$job\"}, route)",
+          "query": "label_values(http_server_request_duration_seconds_count{service_namespace=\"$project\"}, http_route)",
           "refId": "route"
         },
-        "definition": "label_values(http_requests_total{job=\"$job\"}, route)",
+        "definition": "label_values(http_server_request_duration_seconds_count{service_namespace=\"$project\"}, http_route)",
         "refresh": 2,
         "multi": true,
         "includeAll": true,
@@ -72,40 +72,18 @@
       },
       {
         "name": "logs",
-        "label": "Zdroj logů",
+        "label": "Log source",
         "type": "datasource",
         "query": "loki",
         "current": {},
         "hide": 0
-      },
-      {
-        "name": "project",
-        "label": "Projekt",
-        "type": "query",
-        "datasource": {
-          "type": "loki",
-          "uid": "${logs}"
-        },
-        "query": {
-          "type": 1,
-          "label": "service_namespace",
-          "stream": "",
-          "refId": "LokiVariableQueryEditor-VariableQuery"
-        },
-        "definition": "label_values(service_namespace)",
-        "refresh": 1,
-        "current": {
-          "text": "<stack>",
-          "value": "<stack>"
-        },
-        "sort": 1
       }
     ]
   },
   "panels": [
     {
       "type": "stat",
-      "title": "Dostupnost",
+      "title": "Instances",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -122,7 +100,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "up{job=\"$job\"}",
+          "expr": "count(count by (instance) (go_goroutine_count{service_namespace=\"$project\"}))",
           "legendFormat": "",
           "refId": "A",
           "range": true,
@@ -136,26 +114,16 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "red",
                 "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
               }
             ]
           },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "nedostupná",
-                  "color": "red"
-                },
-                "1": {
-                  "text": "běží",
-                  "color": "green"
-                }
-              }
-            }
-          ]
+          "mappings": []
         },
         "overrides": []
       },
@@ -175,7 +143,7 @@
     },
     {
       "type": "stat",
-      "title": "Požadavky za sekundu",
+      "title": "Requests per second",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -192,7 +160,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(http_requests_total{job=\"$job\",route=~\"$route\"}[$__rate_interval]))",
+          "expr": "sum(rate(http_server_request_duration_seconds_count{service_namespace=\"$project\",http_route=~\"$route\"}[$__rate_interval]))",
           "legendFormat": "",
           "refId": "A",
           "range": true,
@@ -232,7 +200,7 @@
     },
     {
       "type": "stat",
-      "title": "Podíl chyb 5xx",
+      "title": "Share of 5xx errors",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -249,7 +217,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(sum(rate(http_requests_total{job=\"$job\",route=~\"$route\",status=~\"5..\"}[$__rate_interval])) or vector(0)) / sum(rate(http_requests_total{job=\"$job\",route=~\"$route\"}[$__rate_interval]))",
+          "expr": "(sum(rate(http_server_request_duration_seconds_count{service_namespace=\"$project\",http_route=~\"$route\",http_response_status_code=~\"5..\"}[$__rate_interval])) or vector(0)) / sum(rate(http_server_request_duration_seconds_count{service_namespace=\"$project\",http_route=~\"$route\"}[$__rate_interval]))",
           "legendFormat": "",
           "refId": "A",
           "range": true,
@@ -297,7 +265,7 @@
     },
     {
       "type": "stat",
-      "title": "p95 doby odpovědi",
+      "title": "p95 response time",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -314,7 +282,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"$job\",route=~\"$route\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{service_namespace=\"$project\",http_route=~\"$route\"}[$__rate_interval])))",
           "legendFormat": "",
           "refId": "A",
           "range": true,
@@ -361,7 +329,7 @@
     },
     {
       "type": "stat",
-      "title": "Rozpracované požadavky",
+      "title": "Goroutines",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -378,7 +346,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(http_requests_in_flight{job=\"$job\"})",
+          "expr": "sum(go_goroutine_count{service_namespace=\"$project\"})",
           "legendFormat": "",
           "refId": "A",
           "range": true,
@@ -394,14 +362,6 @@
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "orange",
-                "value": 10
-              },
-              {
-                "color": "red",
-                "value": 50
               }
             ]
           },
@@ -425,7 +385,7 @@
     },
     {
       "type": "stat",
-      "title": "Běží od posledního startu",
+      "title": "Since the last start",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -442,7 +402,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "time() - max(process_start_time_seconds{job=\"$job\"})",
+          "expr": "time() - max(container_start_time_seconds{service_namespace=\"$project\",service_name=\"${project}_app\"})",
           "legendFormat": "",
           "refId": "A",
           "range": true,
@@ -481,7 +441,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Požadavky za sekundu podle routy",
+      "title": "Requests per second by route",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -498,8 +458,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (route) (rate(http_requests_total{job=\"$job\",route=~\"$route\"}[$__rate_interval]))",
-          "legendFormat": "{{route}}",
+          "expr": "sum by (http_route) (rate(http_server_request_duration_seconds_count{service_namespace=\"$project\",http_route=~\"$route\"}[$__rate_interval]))",
+          "legendFormat": "{{http_route}}",
           "refId": "A",
           "range": true,
           "instant": false
@@ -536,7 +496,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Požadavky za sekundu podle stavu",
+      "title": "Requests per second by status",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -553,8 +513,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (status) (rate(http_requests_total{job=\"$job\",route=~\"$route\"}[$__rate_interval]))",
-          "legendFormat": "{{status}}",
+          "expr": "sum by (http_response_status_code) (rate(http_server_request_duration_seconds_count{service_namespace=\"$project\",http_route=~\"$route\"}[$__rate_interval]))",
+          "legendFormat": "{{http_response_status_code}}",
           "refId": "A",
           "range": true,
           "instant": false
@@ -626,7 +586,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Doba odpovědi: p50, p95, p99",
+      "title": "Response time: p50, p95, p99",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -643,7 +603,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"$job\",route=~\"$route\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(http_server_request_duration_seconds_bucket{service_namespace=\"$project\",http_route=~\"$route\"}[$__rate_interval])))",
           "legendFormat": "p50",
           "refId": "A",
           "range": true,
@@ -654,7 +614,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"$job\",route=~\"$route\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{service_namespace=\"$project\",http_route=~\"$route\"}[$__rate_interval])))",
           "legendFormat": "p95",
           "refId": "B",
           "range": true,
@@ -665,7 +625,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"$job\",route=~\"$route\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_request_duration_seconds_bucket{service_namespace=\"$project\",http_route=~\"$route\"}[$__rate_interval])))",
           "legendFormat": "p99",
           "refId": "C",
           "range": true,
@@ -703,7 +663,7 @@
     },
     {
       "type": "timeseries",
-      "title": "p95 doby odpovědi podle routy",
+      "title": "p95 response time by route",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -720,8 +680,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(http_request_duration_seconds_bucket{job=\"$job\",route=~\"$route\"}[$__rate_interval])))",
-          "legendFormat": "{{route}}",
+          "expr": "histogram_quantile(0.95, sum by (le, http_route) (rate(http_server_request_duration_seconds_bucket{service_namespace=\"$project\",http_route=~\"$route\"}[$__rate_interval])))",
+          "legendFormat": "{{http_route}}",
           "refId": "A",
           "range": true,
           "instant": false
@@ -758,7 +718,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Chyby 5xx podle routy",
+      "title": "5xx errors by route",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -775,8 +735,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (route, status) (rate(http_requests_total{job=\"$job\",route=~\"$route\",status=~\"5..\"}[$__rate_interval]))",
-          "legendFormat": "{{route}} {{status}}",
+          "expr": "sum by (http_route, http_response_status_code) (rate(http_server_request_duration_seconds_count{service_namespace=\"$project\",http_route=~\"$route\",http_response_status_code=~\"5..\"}[$__rate_interval]))",
+          "legendFormat": "{{http_route}} {{http_response_status_code}}",
           "refId": "A",
           "range": true,
           "instant": false
@@ -813,7 +773,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Rozpracované požadavky",
+      "title": "Database pool",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -830,9 +790,31 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(http_requests_in_flight{job=\"$job\"})",
-          "legendFormat": "rozpracované",
+          "expr": "sum(pgxpool_acquired_connections{service_namespace=\"$project\"})",
+          "legendFormat": "acquired",
           "refId": "A",
+          "range": true,
+          "instant": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(pgxpool_idle_connections{service_namespace=\"$project\"})",
+          "legendFormat": "idle",
+          "refId": "B",
+          "range": true,
+          "instant": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(pgxpool_max_connections{service_namespace=\"$project\"})",
+          "legendFormat": "max",
+          "refId": "C",
           "range": true,
           "instant": false
         }
@@ -868,7 +850,7 @@
     },
     {
       "type": "row",
-      "title": "Runtime Go",
+      "title": "Runtime",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -881,7 +863,7 @@
     },
     {
       "type": "timeseries",
-      "title": "CPU (jádra)",
+      "title": "CPU (cores)",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -898,7 +880,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "rate(process_cpu_seconds_total{job=\"$job\"}[$__rate_interval])",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{service_namespace=\"$project\",service_name=\"${project}_app\"}[$__rate_interval]))",
           "legendFormat": "CPU",
           "refId": "A",
           "range": true,
@@ -936,7 +918,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Paměť",
+      "title": "Memory",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -953,8 +935,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "process_resident_memory_bytes{job=\"$job\"}",
-          "legendFormat": "RSS",
+          "expr": "sum(container_memory_working_set_bytes{service_namespace=\"$project\",service_name=\"${project}_app\"})",
+          "legendFormat": "container",
           "refId": "A",
           "range": true,
           "instant": false
@@ -964,8 +946,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "go_memstats_heap_inuse_bytes{job=\"$job\"}",
-          "legendFormat": "heap",
+          "expr": "sum(go_memory_used_bytes{service_namespace=\"$project\"})",
+          "legendFormat": "Go",
           "refId": "B",
           "range": true,
           "instant": false
@@ -1002,7 +984,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Gorutiny a vlákna",
+      "title": "Goroutines by instance",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1019,20 +1001,9 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "go_goroutines{job=\"$job\"}",
-          "legendFormat": "gorutiny",
+          "expr": "sum by (instance) (go_goroutine_count{service_namespace=\"$project\"})",
+          "legendFormat": "{{instance}}",
           "refId": "A",
-          "range": true,
-          "instant": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "go_threads{job=\"$job\"}",
-          "legendFormat": "vlákna",
-          "refId": "B",
           "range": true,
           "instant": false
         }
@@ -1068,7 +1039,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Pauzy GC",
+      "title": "p95 database time by operation",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1085,20 +1056,9 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "rate(go_gc_duration_seconds_sum{job=\"$job\"}[$__rate_interval]) / rate(go_gc_duration_seconds_count{job=\"$job\"}[$__rate_interval])",
-          "legendFormat": "průměr",
+          "expr": "histogram_quantile(0.95, sum by (le, pgx_operation_type) (rate(db_client_operation_duration_seconds_bucket{service_namespace=\"$project\"}[$__rate_interval])))",
+          "legendFormat": "{{pgx_operation_type}}",
           "refId": "A",
-          "range": true,
-          "instant": false
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "go_gc_duration_seconds{job=\"$job\",quantile=\"1.0\"}",
-          "legendFormat": "maximum",
-          "refId": "B",
           "range": true,
           "instant": false
         }
@@ -1134,7 +1094,7 @@
     },
     {
       "type": "row",
-      "title": "Logy",
+      "title": "Logs",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -1147,7 +1107,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Řádky logů podle úrovně",
+      "title": "Log lines by level",
       "datasource": {
         "type": "loki",
         "uid": "${logs}"
@@ -1164,7 +1124,7 @@
             "type": "loki",
             "uid": "${logs}"
           },
-          "expr": "sum by (detected_level) (count_over_time({service_namespace=\"$project\", service_name=\"app\"} [$__auto]))",
+          "expr": "sum by (detected_level) (count_over_time({service_namespace=\"$project\", service_name=\"${project}_app\"} [$__auto]))",
           "legendFormat": "{{detected_level}}",
           "refId": "A",
           "queryType": "range"
@@ -1247,7 +1207,7 @@
     },
     {
       "type": "logs",
-      "title": "Chyby a varování",
+      "title": "Errors and warnings",
       "datasource": {
         "type": "loki",
         "uid": "${logs}"
@@ -1264,7 +1224,7 @@
             "type": "loki",
             "uid": "${logs}"
           },
-          "expr": "{service_namespace=\"$project\", service_name=\"app\"} | detected_level=~\"error|warn\"",
+          "expr": "{service_namespace=\"$project\", service_name=\"${project}_app\"} | detected_level=~\"error|warn\"",
           "refId": "A",
           "queryType": "range"
         }
@@ -1281,7 +1241,7 @@
     },
     {
       "type": "logs",
-      "title": "Všechny logy",
+      "title": "All logs",
       "datasource": {
         "type": "loki",
         "uid": "${logs}"
@@ -1298,7 +1258,7 @@
             "type": "loki",
             "uid": "${logs}"
           },
-          "expr": "{service_namespace=\"$project\", service_name=\"app\"}",
+          "expr": "{service_namespace=\"$project\", service_name=\"${project}_app\"}",
           "refId": "A",
           "queryType": "range"
         }

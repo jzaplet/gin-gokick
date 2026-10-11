@@ -54,7 +54,7 @@ go run ./app            # in a second terminal: http://localhost:8020
 | Path | What it holds |
 | --- | --- |
 | `app/main.go` | the start: config, logger, languages and their dictionaries, mail sender, traces, Sentry, database with migrations, router, server with graceful shutdown |
-| `app/core/` | the reusable core: HTTP server, middleware, CSP, API envelope, grids, views, page URLs, Vite, static files, locales, ICU, mail, database, password hashing, session cookie and signed-in user, rate limit, logging, traces, Sentry, metrics, health checks, test helpers |
+| `app/core/` | the reusable core: HTTP server, middleware, CSP, API envelope, grids, views, page URLs, Vite, static files, locales, ICU, mail, database, password hashing, session cookie and signed-in user, rate limit, logging, traces and metrics, Sentry, health checks, test helpers |
 | `app/internal/` | this app, one folder per domain (`auth`, `user`, `home`, `tracking`) plus `shared`: config, router, templates, CSP services, the handlers of no domain, the locale images and the test router |
 | `locale/` | the dictionaries, one Go map per locale |
 | `views/` | Go templates: the pages, their components and the mails |
@@ -82,10 +82,10 @@ The app reads the environment, and `.env` fills in what the environment lacks. `
 | `GIN_MODE` | `release` | `debug`, `release` or `test` |
 | `TRUSTED_PROXIES` | empty | IPs and CIDRs trusted for `X-Forwarded-For` |
 | `LOG_FORMAT`, `LOG_LEVEL` | `json`, `info` | log format (`json`, `text`) and lowest level (`debug` to `error`) |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | empty | base address of an OTLP/HTTP receiver; the traces go to its `/v1/traces`, and empty sends none |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | empty | base address of an OTLP/HTTP receiver; traces go to its `/v1/traces` and metrics to `/v1/metrics`, and empty sends neither |
 | `OTEL_EXPORTER_OTLP_HEADERS` | empty | headers of every export (`Authorization=Basic%20…`), with percent-encoded values |
-| `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES` | `app`, empty | `service.name`, and further attributes of every trace, above all `service.namespace` |
-| `OTEL_TRACES_SAMPLER_ARG` | `1` | share of the traces sent, from 0 to 1 |
+| `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES` | `app`, empty | `service.name`, and further attributes of every trace and metric, above all `service.namespace`; `service.instance.id` defaults to a random UUID of each start. The production compose sets `service.name` and `service.instance.id` from Swarm |
+| `OTEL_TRACES_SAMPLER_ARG` | `1` | share of the traces sent, from 0 to 1; metrics count every request |
 | `DB_HOST`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` | required | PostgreSQL server, database, role and password of the app |
 | `DB_PORT`, `DB_PARAMS` | `5432`, empty | port, and connection parameters as a query (`?sslmode=disable&pool_max_conns=10`) |
 | `DB_TEST_NAME`, `DB_TEST_PARAMS` | empty | test database for `go test`; compose requires `DB_TEST_NAME` and creates it |
@@ -94,7 +94,6 @@ The app reads the environment, and `.env` fills in what the environment lacks. `
 | `SMTP_PORT` | `587` | SMTP port; port 465 (TLS from the first byte) is refused |
 | `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_SENDER_NAME` | empty | SMTP account (both or neither) and sender name |
 | `SENTRY_DSN`, `SENTRY_FRONTEND_DSN` | empty | Sentry for the backend and the browser; empty turns each off |
-| `METRICS_USER`, `METRICS_PASSWORD` | empty | account for `/metrics`, both or neither; empty makes `/metrics` answer 404 |
 | `UMAMI_WEBSITE_ID` | empty | Umami, which needs no consent |
 | `GA4_MEASUREMENT_ID`, `GOOGLE_ADS_ID`, `META_PIXEL_ID` | empty | tools that wait for cookie consent |
 | `GOOGLE_ADS_CONVERSIONS` | empty | conversion labels (`sign_up=AbC-D_efG`); an unknown conversion stops the start |
@@ -105,7 +104,7 @@ The app reads the environment, and `.env` fills in what the environment lacks. `
 
 ## Routes and requests
 
-The routes sit in `app/internal/shared/router/routes.go`, and the Vite proxy and the files of `public/` register themselves. `/ping` answers that the app runs, `/readyz` checks the database, and `/metrics` serves Prometheus.
+The routes sit in `app/internal/shared/router/routes.go`, and the Vite proxy and the files of `public/` register themselves. `/ping` answers that the app runs, and `/readyz` checks the database.
 
 **The language is part of the address.**
 - `/` is always `DEFAULT_LOCALE`.
@@ -113,7 +112,7 @@ The routes sit in `app/internal/shared/router/routes.go`, and the Vite proxy and
 - The home of the default language under its prefix (`/cs`) redirects to `/` with 301 and keeps the query. Its other pages keep the prefix (`/cs/app/login`).
 - The SPA is the pattern `/:lang/app` and `/:lang/app/*path` behind `locales.Prefix(notFound)`, which hands a language outside `LOCALES` to the 404.
 - The home page of every other language has its own route, because a pattern of one segment would also catch `/favicon.ico`.
-- The API, `/ping`, `/readyz`, `/metrics` and the files of `public/` have no language.
+- The API, `/ping`, `/readyz` and the files of `public/` have no language.
 
 **Client IP and limits.**
 - gin takes the client IP from Cloudflare's `CF-Connecting-IP` first and trusts it whatever `TRUSTED_PROXIES` says, so the server must be reachable only through Cloudflare.
@@ -124,7 +123,7 @@ The routes sit in `app/internal/shared/router/routes.go`, and the Vite proxy and
 **Public files.** `public/` is the web root, like nginx `try_files`. A file there is served at the same path unless an app route takes it.
 - Dotfiles, `.go` files and directory listings never go out, and only GET and HEAD are answered.
 - The hashed files in `/build/assets/` are cached for a year (`immutable`). Everything else gets `no-cache` with an ETag.
-- Every 404 answers `no-store`, except `/metrics` without an account. A client that asks for JSON first gets the envelope, and anyone else the 404 page.
+- Every 404 answers `no-store`. A client that asks for JSON first gets the envelope, and anyone else the 404 page.
 
 ## API
 
@@ -243,7 +242,7 @@ Every error goes out in one envelope. Its keys are the JSON path of a field (`em
 - It also writes `<meta name="locale">` with the home of each language for the SPA, and with two or more languages the `hreflang` links.
 - `pageurl` builds absolute addresses from `Host` and `X-Forwarded-Proto`.
 
-**The 404.** `sharedhandler.NotFound` answers every 404, except the empty one of `/metrics` without an account: an unknown path, a missing file or an unknown language. The page takes its language from the first path segment and has `noindex` instead of the share card. The SPA draws the same page in `NotFoundView.vue`.
+**The 404.** `sharedhandler.NotFound` answers every 404: an unknown path, a missing file or an unknown language. The page takes its language from the first path segment and has `noindex` instead of the share card. The SPA draws the same page in `NotFoundView.vue`.
 
 **Vite in templates.**
 - `{{vite .Nonce "assets/app.css" …}}` writes the entries with their preloads and nonce.
@@ -438,11 +437,11 @@ It also writes a sample of numbers to `tests/assets/i18n/numbers`, against which
 **Traces.** `app/core/telemetry` sends them through OpenTelemetry over OTLP/HTTP to `OTEL_EXPORTER_OTLP_ENDPOINT`.
 - **One trace ID.** Every request belongs to a trace: the one of an incoming W3C `traceparent`, else of the frontend's `sentry-trace`, else a new one. The log, the Sentry event, the span and `X-Trace-Id` carry the same ID, with telemetry off too.
 - **Spans.** `otelgin` opens a server span named by the method and the route pattern. `otelpgx` adds a span per query, and `telemetry.Transport` one per outgoing request, which carries `traceparent` on.
-- **What is never sent:** `/ping`, `/readyz`, `/metrics`, public files and unknown paths. They keep their trace ID.
+- **What is never sent:** `/ping`, `/readyz`, public files and unknown paths. They keep their trace ID.
 - **What the spans carry.** The server span has the route pattern, the query and the `User-Agent`. A wrapper drops the client's IP and port and the real path before the export; the IP is in the access log line with the same `trace_id`. An outgoing request keeps its full URL with the query, except a host that puts a secret into the URL (`api.telegram.org`), which keeps only its origin. A query span carries its SQL, never its parameters.
 - **Sampling.** `OTEL_TRACES_SAMPLER_ARG` decides once per trace by its ID. It ignores the sampled flag of a remote parent, because Sentry in the browser sends every `traceparent` as not sampled.
 - **Off without an endpoint.** Without `OTEL_EXPORTER_OTLP_ENDPOINT` the app sends nothing, whatever other `OTEL_*` variable is set.
-- **Errors of the export** go to the log as warnings, and telemetry never stops the start. At shutdown the app sends what is left, for at most 2 s.
+- **Errors of the export** go to the log as warnings, and telemetry never stops the start. At shutdown the app sends what is left of the traces and the metrics at once, for at most 2 s.
 
 **Sentry.**
 - `SENTRY_DSN` turns it on. Every panic and every 5xx with a reported error goes there, and several errors of one request form one event.
@@ -460,16 +459,19 @@ It also writes a sample of numbers to `tests/assets/i18n/numbers`, against which
   - It measures no performance and never infers the visitor's IP.
 - **Source maps** are uploaded by the Docker build, only with the build secret `SENTRY_AUTH_TOKEN`, and then deleted from the image.
 
-**Metrics.** `/metrics` serves Prometheus on the app's port behind basic auth (`METRICS_USER`, `METRICS_PASSWORD`). Without an account it answers an empty 404.
+**Metrics.** `app/core/telemetry` sends them every 30 s with the traces to `OTEL_EXPORTER_OTLP_ENDPOINT`, and nothing reads them from the app.
 
-| Metric | Type | Labels |
+| Metric | Type | Attributes |
 | --- | --- | --- |
-| `http_requests_total` | counter | `method`, `route`, `status` |
-| `http_request_duration_seconds` | histogram | `method`, `route` |
-| `http_requests_in_flight` | gauge | none |
-| `go_*`, `process_*` | runtime of Go and of the process | — |
+| `http.server.request.duration` | histogram in seconds | `http.request.method`, `http.route`, `http.response.status_code`, `error.type` |
+| `http.client.request.duration` | histogram in seconds | outgoing requests of `telemetry.Transport` by method, host and status |
+| `db.client.operation.duration`, `db.client.operation.errors` | histogram, counter | queries by operation |
+| `pgxpool.*` | gauges and counters | connections of the pool: idle, acquired, total, and the waits for one |
+| `go.*` | runtime of Go | memory, goroutines, the goal of the GC, the processors |
 
-`route` is the route pattern, so tokens stay out and the series stay few. Unknown paths and public files count as `unmatched`.
+- `http.route` is the route pattern, so tokens stay out and the series stay few. A request no route matched has none. Every request counts, health checks too.
+- A view keeps only the four attributes of `http.server.request.duration` and drops the histograms of body sizes.
+- The production compose names the app after Swarm. `service.name` is the name of the service (`<stack>_app`), the same as `service_name` of its logs in Loki. `service.instance.id` is the name of the task, which is also the name of its container (`<stack>_app.1.<task ID>`), so it tells the replicas apart. Prometheus writes the names with underscores and units (`http_server_request_duration_seconds`) and the attributes as labels (`http_route`).
 
 **Health.** `/readyz` checks the database within 2 s and answers 200, or 503 with the state of each check without the error text.
 
@@ -503,16 +505,16 @@ Each tool is switched on by its ID in the environment and runs without Google Ta
 - The healthcheck asks `/readyz` every 30 s.
 
 **Docker Swarm.** `docker/production/compose.yaml` is the production stack: the app and PostgreSQL 18 on the nodes whose label `role` the deploy passes as `ROLE`. Shared GitHub Actions workflows build the image of every commit and deploy the stack with the image of the chosen commit.
-- The app sits on the stack's network, where it reaches `db`, and on the external network `edge`, where the reverse proxy and Prometheus reach it.
+- The app sits on the stack's network, where it reaches `db`, and on the external network `edge`, where the reverse proxy and the OTLP receiver are.
 - An update starts the new app before it stops the old one, and rolls back when the new one fails its healthcheck. PostgreSQL stops first, because two instances can't share its volume. When a deploy changes both, the new app waits for the restarted database.
 - The passwords arrive as Docker secrets, so `docker service inspect` never shows them. The entrypoint of `app` exports every file of `/run/secrets` as a variable of its name, and the app reads them like any other variable. PostgreSQL and `app-role.sh` read theirs through `POSTGRES_PASSWORD_FILE` and `DB_PASSWORD_FILE`.
 - Everything else comes from repository variables, or the compose fixes it (release mode, JSON logs, the environment `production`, the commit as the release).
 
 **Caddy and Cloudflare.** Cloudflare proxies the domain to Caddy, and Caddy proxies it over `edge` to the app. Caddy passes `CF-Connecting-IP` unchanged. For requests without it, the compose sets `TRUSTED_PROXIES` to the overlay address pool of the Swarm (`10.64.0.0/12`), so gin skips Caddy's address. A Swarm with another `--default-addr-pool` needs that range changed.
 
-**Logs, traces and metrics.** Alloy sends the logs of every container to Loki with the stack and the service as labels, so the app needs no setup for them. The compose sends the traces to `http://otel:4318`, the OTLP receiver on `edge`, with the stack as `service.namespace`; the repository variable `OTEL_EXPORTER_OTLP_ENDPOINT` points them elsewhere. Prometheus reads `/metrics` over `edge` with its own scrape job.
+**Logs, traces and metrics.** Alloy sends the logs of every container to Loki with the stack and the service as labels, so the app needs no setup for them. The compose sends the traces and metrics to `http://otel:4318`, the OTLP receiver on `edge`, with the stack as `service.namespace`; the repository variable `OTEL_EXPORTER_OTLP_ENDPOINT` points them elsewhere.
 
-**The first deploy.** [first-deploy.md](first-deploy.md) walks through it: Cloudflare and Caddy, Sentry, the workflows with their variables and secrets, the deploy, backups, Prometheus, Grafana and the checks.
+**The first deploy.** [first-deploy.md](first-deploy.md) walks through it: Cloudflare and Caddy, Sentry, the workflows with their variables and secrets, the deploy, backups, Grafana and the checks.
 
 ## Tests
 
