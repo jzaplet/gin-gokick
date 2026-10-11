@@ -8,6 +8,8 @@ const KeyMethod = "method"
 
 const KeyPath = "path"
 
+const KeyQuery = "query"
+
 const KeyStatus = "status"
 
 const KeyIP = "ip"

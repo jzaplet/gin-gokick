@@ -3,9 +3,11 @@ services:
     image: ${IMAGE:?}
     entrypoint: ["/bin/sh", "-c", "for f in /run/secrets/*; do [ -f \"$$f\" ] && export \"$${f##*/}=$$(cat \"$$f\")\"; done; exec /app/gokick"]
     environment:
+      APP_URL: https://${APP_DOMAIN:?}
+      APP_ENVIRONMENT: production
+      APP_RELEASE: ${VERSION:?}
       PORT: "8020"
       GIN_MODE: release
-      APP_URL: https://${APP_DOMAIN:?}
       TRUSTED_PROXIES: 10.64.0.0/12
       DEFAULT_LOCALE: ${DEFAULT_LOCALE:?}
       LOCALES: ${LOCALES:-}
@@ -24,8 +26,10 @@ services:
       LOG_LEVEL: info
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_FRONTEND_DSN: ${SENTRY_FRONTEND_DSN:-}
-      SENTRY_ENVIRONMENT: production
-      SENTRY_RELEASE: ${VERSION:?}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel:4318}
+      OTEL_SERVICE_NAME: app
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=${STACK:?}
+      OTEL_TRACES_SAMPLER_ARG: ${OTEL_TRACES_SAMPLER_ARG:-1}
       METRICS_USER: ${METRICS_USER:-}
       UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
       GA4_MEASUREMENT_ID: ${GA4_MEASUREMENT_ID:-}
@@ -39,6 +43,8 @@ services:
         target: SMTP_PASSWORD
       - source: metrics-password
         target: METRICS_PASSWORD
+      - source: otel-exporter-otlp-headers
+        target: OTEL_EXPORTER_OTLP_HEADERS
     networks:
       - default
       - edge
@@ -118,6 +124,9 @@ secrets:
     x-optional: true
   metrics-password:
     x-environment: METRICS_PASSWORD
+    x-optional: true
+  otel-exporter-otlp-headers:
+    x-environment: OTEL_EXPORTER_OTLP_HEADERS
     x-optional: true
 
 volumes:

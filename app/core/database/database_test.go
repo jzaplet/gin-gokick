@@ -21,7 +21,7 @@ var migrations = fstest.MapFS{
 }
 
 func TestMigrateAppliesNewMigrationsOnce(t *testing.T) {
-	pool, err := database.Open(t.Context(), testkit.Database(t), 0)
+	pool, err := database.Open(t.Context(), testkit.Database(t), 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestMigrateAppliesNewMigrationsOnce(t *testing.T) {
 }
 
 func TestMigrateStopsAtABrokenMigration(t *testing.T) {
-	pool, err := database.Open(t.Context(), testkit.Database(t), 0)
+	pool, err := database.Open(t.Context(), testkit.Database(t), 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestOpenWaitsForTheDatabase(t *testing.T) {
 		opened := make(chan error, 1)
 
 		go func() {
-			pool, err := database.Open(t.Context(), dsn, 10*time.Second)
+			pool, err := database.Open(t.Context(), dsn, 10*time.Second, nil)
 			if err == nil {
 				pool.Close()
 			}
@@ -93,7 +93,7 @@ func TestOpenWaitsForTheDatabase(t *testing.T) {
 		dsn, _, _ := laterAddress(t)
 		started := time.Now()
 
-		if _, err := database.Open(t.Context(), dsn, time.Second); err == nil || time.Since(started) < time.Second {
+		if _, err := database.Open(t.Context(), dsn, time.Second, nil); err == nil || time.Since(started) < time.Second {
 			t.Errorf("gave up after %v with %v", time.Since(started), err)
 		}
 	})

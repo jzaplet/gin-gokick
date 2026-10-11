@@ -1,9 +1,6 @@
 package reporting
 
-import (
-	"cmp"
-	"html/template"
-)
+import "html/template"
 
 type Browser struct {
 	dsn string
@@ -18,7 +15,7 @@ func NewBrowser(dsn, environment, release string) *Browser {
 		return nil
 	}
 
-	return &Browser{dsn: dsn, environment: environment, release: cmp.Or(release, buildRevision())}
+	return &Browser{dsn: dsn, environment: environment, release: release}
 }
 
 func (b *Browser) Meta() template.HTML {

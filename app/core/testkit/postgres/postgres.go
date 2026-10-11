@@ -86,7 +86,7 @@ func testAddress(tb testing.TB) database.Address {
 func Pool(tb testing.TB, migrations fs.FS) *pgxpool.Pool {
 	tb.Helper()
 
-	pool, err := database.Open(tb.Context(), Schema(tb), 0)
+	pool, err := database.Open(tb.Context(), Schema(tb), 0, nil)
 	if err != nil {
 		tb.Fatal(err)
 	}

@@ -14,11 +14,13 @@ import (
 	"gokick/app/core/locale"
 	"gokick/app/core/mail"
 	"gokick/app/core/reporting"
+	"gokick/app/core/telemetry"
 	"gokick/app/core/testkit"
 	"gokick/app/core/testkit/mailbox"
 	"gokick/app/core/view"
 	"gokick/app/core/vite"
 	"gokick/app/internal/shared/config"
+	"gokick/app/internal/shared/config/app"
 	"gokick/app/internal/shared/config/server"
 	"gokick/app/internal/shared/localeimages"
 	"gokick/app/internal/shared/router"
@@ -36,6 +38,8 @@ type Parts struct {
 	Reporter *reporting.Reporter
 
 	Browser *reporting.Browser
+
+	Telemetry *telemetry.Telemetry
 
 	Pool *pgxpool.Pool
 
@@ -62,6 +66,10 @@ func Build(tb testing.TB, parts *Parts) *gin.Engine {
 		filled.Reporter = &reporting.Reporter{}
 	}
 
+	if filled.Telemetry == nil {
+		filled.Telemetry = Telemetry(tb)
+	}
+
 	if filled.Locales == nil {
 		filled.Locales = Locales(tb, "cs_CZ", "cs_CZ")
 	}
@@ -79,6 +87,7 @@ func Build(tb testing.TB, parts *Parts) *gin.Engine {
 		filled.Logger,
 		filled.Reporter,
 		filled.Browser,
+		filled.Telemetry,
 		filled.Pool,
 		filled.Locales,
 		filled.Public,
@@ -92,7 +101,13 @@ func Build(tb testing.TB, parts *Parts) *gin.Engine {
 }
 
 func Config() *config.Config {
-	return &config.Config{Server: server.Config{GinMode: gin.TestMode, URL: "https://gokick.dev"}}
+	return &config.Config{App: app.Config{URL: "https://gokick.dev"}, Server: server.Config{GinMode: gin.TestMode}}
+}
+
+func Telemetry(tb testing.TB) *telemetry.Telemetry {
+	tb.Helper()
+
+	return telemetry.New(telemetry.Config{}, "", "", testkit.DiscardLogs())
 }
 
 func Locales(tb testing.TB, defaultLocale string, names ...string) *locale.Set {

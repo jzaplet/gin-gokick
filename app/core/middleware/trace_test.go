@@ -1,57 +1,116 @@
 package middleware
 
 import (
+	"errors"
 	"net/http"
 	"regexp"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
-	"gokick/app/core/logging"
+	"gokick/app/core/reporting"
+	"gokick/app/core/telemetry"
 	"gokick/app/core/testkit"
 )
 
-func TestTraceAdoptsTheSentryTraceID(t *testing.T) {
-	req := testkit.Request(t, http.MethodGet, "/trace")
-	req.Header.Set("sentry-trace", "771a43a4192642f0b136d5159a501700-b7ad6b7169203331-1")
+const incomingTrace = "771a43a4192642f0b136d5159a501700"
 
-	if got := traceOf(t, req); got != "771a43a4192642f0b136d5159a501700" {
-		t.Errorf("trace id %q", got)
+var sentryTraceID = regexp.MustCompile(`"trace_id":"([0-9a-f]{32})"`)
+
+func TestOneTraceIDJoinsTheLogTheSpanTheErrorAndTheHeader(t *testing.T) {
+	tests := []struct {
+		name string
+
+		headers map[string]string
+
+		want string
+	}{
+		{"traceparent", map[string]string{"traceparent": "00-" + incomingTrace + "-b7ad6b7169203331-01"}, incomingTrace},
+		{"sentry-trace", map[string]string{"sentry-trace": incomingTrace + "-b7ad6b7169203331-1"}, incomingTrace},
+		{"traceparent before sentry-trace", map[string]string{
+			"traceparent": "00-" + incomingTrace + "-b7ad6b7169203331-00",
+
+			"sentry-trace": strings.Repeat("a", 32) + "-b7ad6b7169203331-1",
+		}, incomingTrace},
+		{"no header", nil, ""},
+		{"sentry-trace in capitals", map[string]string{"sentry-trace": strings.ToUpper(incomingTrace) + "-B7AD6B7169203331"}, ""},
+		{"sentry-trace with an injected line", map[string]string{"sentry-trace": incomingTrace + "-b7ad6b7169203331\ninjected"}, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ids := traceIDs(t, tt.headers)
+
+			want := tt.want
+			if want == "" {
+				want = ids["X-Trace-Id"]
+			}
+
+			if len(ids) != 4 || generated.MatchString(want) == false || (tt.want == "" && want == incomingTrace) {
+				t.Fatalf("trace ids %v", ids)
+			}
+
+			for name, id := range ids {
+				if id != want {
+					t.Errorf("%s has trace id %s, want %s", name, id, want)
+				}
+			}
+		})
 	}
 }
 
-func TestTraceGeneratesAnIDForAMissingOrInvalidHeader(t *testing.T) {
-	generated := regexp.MustCompile(`^[0-9a-f]{32}$`)
-	seen := map[string]bool{}
+var generated = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
-	for _, header := range []string{"", "771A43A4192642F0B136D5159A501700-B7AD6B7169203331", "771a43a4192642f0b136d5159a501700\ninjected"} {
-		req := testkit.Request(t, http.MethodGet, "/trace")
-		req.Header.Set("sentry-trace", header)
-
-		got := traceOf(t, req)
-		if generated.MatchString(got) == false || seen[got] || got == "771a43a4192642f0b136d5159a501700" {
-			t.Errorf("header %q gave trace id %q", header, got)
-		}
-
-		seen[got] = true
-	}
-}
-
-func traceOf(t *testing.T, req *http.Request) string {
+func traceIDs(t *testing.T, headers map[string]string) map[string]string {
 	t.Helper()
-	router := newTestRouter(t, testkit.DiscardLogs())
-	router.GET("/trace", func(c *gin.Context) {
-		if logging.TraceID(c) != logging.TraceID(c.Request.Context()) {
-			t.Error("gin context and request context disagree on the trace id")
-		}
 
-		c.String(http.StatusOK, logging.TraceID(c))
+	collector := testkit.Collector(t)
+
+	tel := telemetry.New(telemetry.Config{
+		Endpoint: collector.URL,
+
+		ServiceName: "app",
+
+		SampleRatio: 1,
+	}, "test", "v1", testkit.DiscardLogs())
+
+	reporter, ingest := newIngestReporter(t)
+	logger, buf := testkit.CaptureLogs()
+	router := newTracedRouter(t, logger, reporter, tel)
+	router.GET("/fail", func(c *gin.Context) {
+		reporting.Error(c, errors.New("database unreachable"))
+		c.Status(http.StatusInternalServerError)
 	})
 
-	res := testkit.Serve(router, req)
-	if res.Header().Get("X-Trace-Id") != res.Body.String() {
-		t.Errorf("X-Trace-Id %q differs from %q", res.Header().Get("X-Trace-Id"), res.Body.String())
+	req := testkit.Request(t, http.MethodGet, "/fail")
+	for key, value := range headers {
+		req.Header.Set(key, value)
 	}
 
-	return res.Body.String()
+	res := testkit.Serve(router, req)
+
+	reporter.Flush(2 * time.Second)
+	tel.Shutdown(5 * time.Second)
+
+	ids := map[string]string{"X-Trace-Id": res.Header().Get("X-Trace-Id")}
+
+	if entries := testkit.LogEntries(t, buf); len(entries) == 1 {
+		ids["log"], _ = entries[0]["trace_id"].(string)
+	}
+
+	if spans := collector.Spans(); len(spans) == 1 {
+		ids["span"] = spans[0].TraceID
+	}
+
+	reported := map[string]bool{}
+	for _, match := range sentryTraceID.FindAllStringSubmatch(ingest.received(), -1) {
+		reported[match[1]] = true
+	}
+
+	for id := range reported {
+		ids["error"] += id
+	}
+
+	return ids
 }

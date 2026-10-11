@@ -235,17 +235,6 @@ func TestNamesAnUnmatchedRoute(t *testing.T) {
 	}
 }
 
-func TestReleaseFallsBackToTheBuild(t *testing.T) {
-	reporter, err := New("https://public@example.com/1", "test", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if got := reporter.hub.Client().Options().Release; got != buildRevision() || got == "" {
-		t.Errorf("release %q", got)
-	}
-}
-
 func TestLeavesClientErrorsOut(t *testing.T) {
 	reporter, sent := newCapturingReporter(t)
 	router := newTestRouter(reporter)

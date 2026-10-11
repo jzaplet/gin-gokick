@@ -8,8 +8,11 @@ import (
 	"github.com/joho/godotenv"
 
 	"gokick/app/core/database"
+	"gokick/app/core/telemetry"
+	"gokick/app/internal/shared/config/app"
 	"gokick/app/internal/shared/config/locale"
 	"gokick/app/internal/shared/config/logs"
+	"gokick/app/internal/shared/config/otel"
 	"gokick/app/internal/shared/config/postgres"
 	"gokick/app/internal/shared/config/prometheus"
 	"gokick/app/internal/shared/config/sentry"
@@ -19,11 +22,15 @@ import (
 )
 
 type Config struct {
+	App app.Config
+
 	Server server.Config
 
 	Log logs.Config
 
 	Sentry sentry.Config
+
+	Telemetry telemetry.Config
 
 	Database database.Address
 
@@ -49,11 +56,19 @@ func fromEnv() (*Config, error) {
 	cfg := &Config{Sentry: sentry.Read()}
 
 	var err error
+	if cfg.App, err = app.Read(); err != nil {
+		return nil, err
+	}
+
 	if cfg.Server, err = server.Read(); err != nil {
 		return nil, err
 	}
 
 	if cfg.Log, err = logs.Read(); err != nil {
+		return nil, err
+	}
+
+	if cfg.Telemetry, err = otel.Read(); err != nil {
 		return nil, err
 	}
 

@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"fmt"
 	"net"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -20,8 +19,6 @@ type Config struct {
 	GinMode string
 
 	TrustedProxies []string
-
-	URL string
 }
 
 func Read() (Config, error) {
@@ -42,12 +39,7 @@ func Read() (Config, error) {
 		return Config{}, err
 	}
 
-	address, err := parseURL(os.Getenv("APP_URL"))
-	if err != nil {
-		return Config{}, err
-	}
-
-	return Config{Port: port, GinMode: mode, TrustedProxies: proxies, URL: address}, nil
+	return Config{Port: port, GinMode: mode, TrustedProxies: proxies}, nil
 }
 
 func (c Config) Addr() string {
@@ -61,15 +53,6 @@ func parsePort(value string) (uint16, error) {
 	}
 
 	return uint16(port), nil
-}
-
-func parseURL(value string) (string, error) {
-	parsed, err := url.Parse(value)
-	if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" || parsed.User != nil || strings.Trim(parsed.Path, "/") != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return "", fmt.Errorf("APP_URL must be the address of the app without a path, like https://gokick.dev, got %q", value)
-	}
-
-	return parsed.Scheme + "://" + parsed.Host, nil
 }
 
 func parseProxies(value string) ([]string, error) {

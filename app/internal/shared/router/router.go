@@ -15,6 +15,7 @@ import (
 	"gokick/app/core/middleware"
 	"gokick/app/core/reporting"
 	"gokick/app/core/static"
+	"gokick/app/core/telemetry"
 	"gokick/app/core/vite"
 	"gokick/app/internal/shared/config"
 	"gokick/app/internal/shared/csp"
@@ -29,6 +30,7 @@ func NewRouter(
 	logger *slog.Logger,
 	reporter *reporting.Reporter,
 	browser *reporting.Browser,
+	tel *telemetry.Telemetry,
 	pool *pgxpool.Pool,
 	locales *locale.Set,
 	public fs.FS,
@@ -40,8 +42,9 @@ func NewRouter(
 	}
 
 	requestMetrics := metrics.New()
+
+	router.Use(tel.Middleware("/ping", "/readyz", "/metrics")...)
 	router.Use(
-		middleware.Trace(),
 		reporter.Middleware(),
 		middleware.AccessLog(logger),
 		requestMetrics.Middleware(),
@@ -66,7 +69,7 @@ func NewRouter(
 		return nil, err
 	}
 
-	mailer := mail.NewMailer(renderer, sender, cfg.Server.URL)
+	mailer := mail.NewMailer(renderer, sender, cfg.App.URL)
 	notFound := sharedhandler.NotFound(renderer, locales)
 	routes(router, cfg, locales, renderer, requestMetrics, pool, mailer, notFound)
 
