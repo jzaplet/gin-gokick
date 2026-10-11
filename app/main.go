@@ -21,7 +21,11 @@ import (
 	"gokick/public"
 )
 
-const reportFlushTimeout = 2 * time.Second
+const (
+	reportFlushTimeout = 2 * time.Second
+
+	databaseWait = time.Minute
+)
 
 func main() {
 	os.Exit(run())
@@ -78,7 +82,7 @@ func run() int {
 
 	browser := reporting.NewBrowser(cfg.Sentry.FrontendDSN, cfg.Sentry.Environment, cfg.Sentry.Release)
 
-	pool, err := database.Open(ctx, cfg.Database.URL())
+	pool, err := database.Open(ctx, cfg.Database.URL(), databaseWait)
 	if err != nil {
 		logger.ErrorContext(ctx, "cannot connect to the database", logging.Err(err))
 

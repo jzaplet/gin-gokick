@@ -89,9 +89,9 @@ var csCZ = Dictionary{
 
 	"home.feature.docker.text": "Image běží na Alpine bez roota a\u00a0healthcheck ověří i\u00a0databázi.",
 
-	"home.feature.dokploy.title": "Návod na Dokploy",
+	"home.feature.deploy.title": "Návod na nasazení",
 
-	"home.feature.dokploy.text": "Provede prvním nasazením s\u00a0Postgresem, Cloudflarem i\u00a0Grafanou.",
+	"home.feature.deploy.text": "Provede prvním nasazením do Docker Swarmu s\u00a0Cloudflarem i\u00a0Grafanou.",
 
 	"home.feature.shutdown.title": "Klidný restart",
 

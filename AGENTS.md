@@ -212,7 +212,10 @@ docker build -f docker/production/Dockerfile . &&
 1. Add it to its section of `.env.example`, with allowed values, default and a short explanation, in the language of the file.
 2. Read and check it in the package of its section under `app/internal/shared/config/`.
    - A new section gets a new package with `Read` and its tests, joined in `config.go`.
-3. Add it to the configuration table in `docs/README.md`.
+3. Pass it to the app in `docker/production/compose.yaml`, or production never gets it.
+   - A setting goes under `environment` as `${NAME:-}`, or `${NAME:?}` when the app requires it.
+   - A secret never goes under `environment`. It becomes a top-level secret with `x-environment: NAME`, plus `x-optional: true` when it may be missing, mounted into the service with `target: NAME`.
+4. Add it to the configuration table in `docs/README.md`.
 
 ### A migration and a query
 1. Write a new file `migrations/<yyyymmddhhmmss>_<name>.sql` with `-- +goose Up` and `-- +goose Down`. Once a migration has reached production, it never changes.

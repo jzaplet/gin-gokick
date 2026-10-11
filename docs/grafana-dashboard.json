@@ -88,15 +88,15 @@
         },
         "query": {
           "type": 1,
-          "label": "project",
+          "label": "service_namespace",
           "stream": "",
           "refId": "LokiVariableQueryEditor-VariableQuery"
         },
-        "definition": "label_values(project)",
+        "definition": "label_values(service_namespace)",
         "refresh": 1,
         "current": {
-          "text": "<projectname>",
-          "value": "<projectname>"
+          "text": "<stack>",
+          "value": "<stack>"
         },
         "sort": 1
       }
@@ -1164,7 +1164,7 @@
             "type": "loki",
             "uid": "${logs}"
           },
-          "expr": "sum by (detected_level) (count_over_time({project=\"$project\"} [$__auto]))",
+          "expr": "sum by (detected_level) (count_over_time({service_namespace=\"$project\", service_name=\"app\"} [$__auto]))",
           "legendFormat": "{{detected_level}}",
           "refId": "A",
           "queryType": "range"
@@ -1264,7 +1264,7 @@
             "type": "loki",
             "uid": "${logs}"
           },
-          "expr": "{project=\"$project\"} | detected_level=~\"error|warn\"",
+          "expr": "{service_namespace=\"$project\", service_name=\"app\"} | detected_level=~\"error|warn\"",
           "refId": "A",
           "queryType": "range"
         }
@@ -1298,7 +1298,7 @@
             "type": "loki",
             "uid": "${logs}"
           },
-          "expr": "{project=\"$project\"}",
+          "expr": "{service_namespace=\"$project\", service_name=\"app\"}",
           "refId": "A",
           "queryType": "range"
         }

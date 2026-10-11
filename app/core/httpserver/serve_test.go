@@ -55,8 +55,8 @@ func TestServerLimitsSlowAndIdleConnections(t *testing.T) {
 		t.Errorf("read header %s, read %s, write %s", server.ReadHeaderTimeout, server.ReadTimeout, server.WriteTimeout)
 	}
 
-	if traefikIdleConnTimeout := 90 * time.Second; server.IdleTimeout <= traefikIdleConnTimeout {
-		t.Errorf("idle %s must outlive the idle connections Traefik reuses", server.IdleTimeout)
+	if caddyIdleConnTimeout := 2 * time.Minute; server.IdleTimeout <= caddyIdleConnTimeout {
+		t.Errorf("idle %s must outlive the idle connections Caddy reuses", server.IdleTimeout)
 	}
 }
 

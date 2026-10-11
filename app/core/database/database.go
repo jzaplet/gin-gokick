@@ -16,24 +16,38 @@ import (
 	"gokick/app/core/logging"
 )
 
-const pingTimeout = 10 * time.Second
+const (
+	pingTimeout = 5 * time.Second
 
-func Open(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
+	retryDelay = time.Second
+)
+
+func Open(ctx context.Context, dsn string, wait time.Duration) (*pgxpool.Pool, error) {
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
 		return nil, fmt.Errorf("database: %w", err)
 	}
 
-	pingCtx, cancel := context.WithTimeout(ctx, pingTimeout)
-	defer cancel()
+	deadline := time.Now().Add(wait)
 
-	if err := pool.Ping(pingCtx); err != nil {
-		pool.Close()
+	for err = ping(ctx, pool); err != nil; err = ping(ctx, pool) {
+		if ctx.Err() != nil || time.Now().After(deadline) {
+			pool.Close()
 
-		return nil, fmt.Errorf("database: %w", err)
+			return nil, fmt.Errorf("database: %w", err)
+		}
+
+		time.Sleep(retryDelay)
 	}
 
 	return pool, nil
+}
+
+func ping(ctx context.Context, pool *pgxpool.Pool) error {
+	pingCtx, cancel := context.WithTimeout(ctx, pingTimeout)
+	defer cancel()
+
+	return pool.Ping(pingCtx)
 }
 
 func Migrate(ctx context.Context, pool *pgxpool.Pool, migrations fs.FS, logger *slog.Logger) (err error) {

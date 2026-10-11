@@ -89,9 +89,9 @@ var enUS = Dictionary{
 
 	"home.feature.docker.text": "The image runs on Alpine without root and checks the database.",
 
-	"home.feature.dokploy.title": "Dokploy guide",
+	"home.feature.deploy.title": "Deploy guide",
 
-	"home.feature.dokploy.text": "Guides the first deploy with Postgres, Cloudflare and Grafana.",
+	"home.feature.deploy.text": "Guides the first deploy to Docker Swarm with Cloudflare and Grafana.",
 
 	"home.feature.shutdown.title": "Graceful restart",
 
