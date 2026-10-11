@@ -63,7 +63,7 @@ go run ./app            # in a second terminal: http://localhost:8020
 | `migrations/` | goose migrations in SQL |
 | `tools/` | `tsgen` and `i18n` with their shared `codegen`, `codestyle`, the ESLint plugin `codestyle` in `tools/eslint`, and sqlc pinned in its own module |
 | `tests/` | the Vitest tests of the frontend and of the ESLint plugin |
-| `docker/` | the production Dockerfile and the script that creates the database role |
+| `docker/` | the production Dockerfile, the compose of the production Swarm stack and the script that creates the database role |
 | `docs/` | this document, the [first deploy](first-deploy.md) and a Grafana dashboard |
 
 `views/`, `public/` and `migrations/` are embedded into the binary, and `locale/` is compiled into it. `app/main.go` stays under `app/`, because Go lets only packages under `app/` import `app/internal`.
@@ -94,7 +94,7 @@ The app reads the environment, and `.env` fills in what the environment lacks. `
 | `UMAMI_WEBSITE_ID` | empty | Umami, which needs no consent |
 | `GA4_MEASUREMENT_ID`, `GOOGLE_ADS_ID`, `META_PIXEL_ID` | empty | tools that wait for cookie consent |
 | `GOOGLE_ADS_CONVERSIONS` | empty | conversion labels (`sign_up=AbC-D_efG`); an unknown conversion stops the start |
-| `APP_DOMAIN`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | — | not read by the app: the local domain for `docker compose` (`.env.example` builds `DB_HOST`, `SMTP_HOST` and `SMTP_SENDER_EMAIL` from it, and compose the `APP_URL` of the container) and the PostgreSQL superuser |
+| `APP_DOMAIN`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | — | not read by the app: the domain for both composes (locally `.env.example` builds `DB_HOST`, `SMTP_HOST` and `SMTP_SENDER_EMAIL` from it, and each compose the `APP_URL` of its container) and the PostgreSQL superuser |
 | `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_REPOSITORY`, `SENTRY_AUTH_TOKEN` | — | only for the Docker build: source maps and the release |
 
 `app/internal/shared/config` puts `Config` together from one package per section of `.env.example`. The exceptions are `TRUSTED_PROXIES`, which the server package reads, and the Sentry build section, which the app never reads.
@@ -203,7 +203,7 @@ Every error goes out in one envelope. Its keys are the JSON path of a field (`em
 
 **The app's role.**
 - The app connects as a role that owns its database but is no superuser, so it can create tables and run migrations, but no roles or databases.
-- `docker/postgres/app-role.sql` creates the role and the databases. Compose runs it at the first start of `db` and CI runs it too; in production it runs once by hand.
+- `docker/postgres/app-role.sql` creates the role and the databases. Both composes run it at the first start of `db` on an empty volume, and CI runs it too.
 - A local change of `DB_NAME`, `DB_TEST_NAME`, `DB_USERNAME` or `DB_PASSWORD` needs `docker compose down -v`, which deletes the data.
 
 **Queries.**
@@ -489,9 +489,17 @@ Each tool is switched on by its ID in the environment and runs without Google Ta
 - Its `assets` stage copies only what the frontend build needs.
 - The healthcheck asks `/readyz` every 30 s.
 
-**Dokploy.** The app runs behind Traefik in Dokploy. Traefik passes `CF-Connecting-IP` unchanged. For requests without it, set `TRUSTED_PROXIES=127.0.0.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16` so gin skips Traefik's address.
+**Docker Swarm.** `docker/production/compose.yaml` is the production stack: the app and PostgreSQL 18 on the nodes whose label `role` the deploy passes as `ROLE`. Shared GitHub Actions workflows build the image of every commit and deploy the stack with the image of the chosen commit.
+- The app sits on the stack's network, where it reaches `db`, and on the external network `edge`, where the reverse proxy and Prometheus reach it.
+- An update starts the new app before it stops the old one, and rolls back when the new one fails its healthcheck. PostgreSQL stops first, because two instances can't share its volume.
+- The passwords arrive as Docker secrets, so `docker service inspect` never shows them. The entrypoint exports every file of `/run/secrets` as a variable of its name, and the app reads them like any other variable.
+- Everything else comes from repository variables, or the compose fixes it (release mode, JSON logs, the environment `production`, the commit as the release).
 
-**The first deploy.** [first-deploy.md](first-deploy.md) walks through it: Cloudflare, Sentry, PostgreSQL, Dokploy, Prometheus, Loki, Grafana and the checks.
+**Caddy and Cloudflare.** Cloudflare proxies the domain to Caddy, and Caddy proxies it over `edge` to the app. Caddy passes `CF-Connecting-IP` unchanged. For requests without it, the compose sets `TRUSTED_PROXIES` to the overlay address pool of the Swarm (`10.64.0.0/12`), so gin skips Caddy's address. A Swarm with another `--default-addr-pool` needs that range changed.
+
+**Logs and metrics.** Alloy sends the logs of every container to Loki with the stack and the service as labels, so the app needs no setup for them. Prometheus reads `/metrics` over `edge` with its own scrape job.
+
+**The first deploy.** [first-deploy.md](first-deploy.md) walks through it: Cloudflare and Caddy, Sentry, the workflows with their variables and secrets, the deploy, backups, Prometheus, Grafana and the checks.
 
 ## Tests
 
