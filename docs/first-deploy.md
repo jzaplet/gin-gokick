@@ -264,7 +264,9 @@ The shared Build passes the Dockerfile no build arguments and no build secret, s
 
    The log must show `migration applied` and `listening`, and `https://<domain>/readyz` must answer 200 once step 1 is deployed.
 3. **Later deploys.** Every push to `<branch>` builds an image, and Deploy runs by hand. To roll back, run Deploy with the commit of the last good version.
-4. **Optional: change the database password.** The password of the role lives in the secret `DB_PASSWORD`, and Postgres keeps its hash. `app-role.sh` runs only on an empty volume, so a change is an `ALTER ROLE` and a new secret in the same command, then a run of Deploy. `<db-server>` is the server `ssh <manager> "docker service ps <stack>_db --filter desired-state=running --format '{{.Node}}'"` names. Open connections keep working, and new ones of the running app can't connect until the deploy.
+4. **Optional: change the database password.** The password of the role lives in the secret `DB_PASSWORD`, and Postgres keeps its hash. `app-role.sh` runs only on an empty volume, so a change is an `ALTER ROLE` and a new secret in the same command, then a run of Deploy. `<db-server>` is the server `ssh <manager> "docker service ps <stack>_db --filter desired-state=running --format '{{.Node}}'"` names.
+   - Until the deploy, open connections keep working, and new ones of the running app can't connect.
+   - `db` mounts the same secret, so the deploy restarts it too, and every connection drops for a moment.
 
    ```bash
    PW=$(openssl rand -hex 24)
@@ -273,7 +275,7 @@ The shared Build passes the Dockerfile no build arguments and no build secret, s
      && printf '%s' "$PW" | gh secret set DB_PASSWORD --repo <repo>
    ```
 
-   `POSTGRES_PASSWORD` counts only on an empty volume too. A new value of the secret leaves the password of the superuser as it was.
+   `POSTGRES_PASSWORD` counts only on an empty volume too. A new value of the secret restarts `db` on the next deploy and leaves the password of the superuser as it was.
 
 ## 5. Backups
 
