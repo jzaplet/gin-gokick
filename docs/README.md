@@ -114,7 +114,7 @@ The routes sit in `app/internal/shared/router/routes.go`, and the Vite proxy and
 **Client IP and limits.**
 - gin takes the client IP from Cloudflare's `CF-Connecting-IP` first and trusts it whatever `TRUSTED_PROXIES` says, so the server must be reachable only through Cloudflare.
 - Every request gets a 5 s deadline on its context. A query that got `c.Request.Context()` stops with it, but a handler that ignores the context keeps running.
-- The server closes a connection that reads or writes longer than 10 s, and an idle keep-alive after 120 s. That is longer than Traefik keeps an idle connection, so Traefik never sends into a closing one.
+- The server closes a connection that reads or writes longer than 10 s, and an idle keep-alive after 3 minutes. That is longer than the 2 minutes Caddy keeps an idle connection to the app, so Caddy never sends into a closing one.
 - On SIGTERM the server stops taking connections and gives running requests 5 s to finish.
 
 **Public files.** `public/` is the web root, like nginx `try_files`. A file there is served at the same path unless an app route takes it.

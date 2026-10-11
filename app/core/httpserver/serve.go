@@ -18,7 +18,7 @@ const readTimeout = 10 * time.Second
 
 const writeTimeout = 10 * time.Second
 
-const idleTimeout = 120 * time.Second
+const idleTimeout = 3 * time.Minute
 
 const shutdownTimeout = 5 * time.Second
 
