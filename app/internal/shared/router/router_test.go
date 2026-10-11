@@ -412,7 +412,7 @@ func TestMetricsAreOffWithoutAnAccount(t *testing.T) {
 }
 
 func TestReadinessChecksTheDatabase(t *testing.T) {
-	pool, err := database.Open(context.Background(), testkit.Database(t))
+	pool, err := database.Open(context.Background(), testkit.Database(t), 0)
 	if err != nil {
 		t.Fatal(err)
 	}

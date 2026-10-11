@@ -198,7 +198,7 @@ Every error goes out in one envelope. Its keys are the JSON path of a field (`em
 
 **Connection and migrations.**
 - The app connects to PostgreSQL 18 through pgx. `database.Address` builds the URL from the `DB_*` parts, so a password with `@` or `/` can't break it.
-- Without a database the app doesn't start.
+- At start the app tries the database every second for up to a minute, so a database that restarts in the same deploy doesn't stop it. Without a database after that minute the app doesn't start.
 - Right after connecting it runs the new goose migrations from `migrations/` under a PostgreSQL lock, so two instances never migrate at once. A failed migration stops the start.
 
 **The app's role.**
@@ -491,7 +491,7 @@ Each tool is switched on by its ID in the environment and runs without Google Ta
 
 **Docker Swarm.** `docker/production/compose.yaml` is the production stack: the app and PostgreSQL 18 on the nodes whose label `role` the deploy passes as `ROLE`. Shared GitHub Actions workflows build the image of every commit and deploy the stack with the image of the chosen commit.
 - The app sits on the stack's network, where it reaches `db`, and on the external network `edge`, where the reverse proxy and Prometheus reach it.
-- An update starts the new app before it stops the old one, and rolls back when the new one fails its healthcheck. PostgreSQL stops first, because two instances can't share its volume.
+- An update starts the new app before it stops the old one, and rolls back when the new one fails its healthcheck. PostgreSQL stops first, because two instances can't share its volume. When a deploy changes both, the new app waits for the restarted database.
 - The passwords arrive as Docker secrets, so `docker service inspect` never shows them. The entrypoint of `app` exports every file of `/run/secrets` as a variable of its name, and the app reads them like any other variable. PostgreSQL and `app-role.sh` read theirs through `POSTGRES_PASSWORD_FILE` and `DB_PASSWORD_FILE`.
 - Everything else comes from repository variables, or the compose fixes it (release mode, JSON logs, the environment `production`, the commit as the release).
 
