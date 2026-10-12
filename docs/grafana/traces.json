@@ -1,6 +1,6 @@
 {
   "uid": "<projectname>-traces",
-  "title": "<domain> - traces",
+  "title": "<domain> - Traces",
   "tags": [
     "<projectname>",
     "go",

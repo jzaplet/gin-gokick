@@ -1,6 +1,6 @@
 {
   "uid": "<projectname>-logs",
-  "title": "<domain> - logs",
+  "title": "<domain> - Logs",
   "tags": [
     "<projectname>",
     "go",

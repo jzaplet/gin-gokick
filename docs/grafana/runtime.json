@@ -1,6 +1,6 @@
 {
   "uid": "<projectname>-runtime",
-  "title": "<domain> - runtime",
+  "title": "<domain> - Runtime",
   "tags": [
     "<projectname>",
     "go",

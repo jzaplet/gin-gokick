@@ -1,6 +1,6 @@
 {
   "uid": "<projectname>-database",
-  "title": "<domain> - database",
+  "title": "<domain> - Database",
   "tags": [
     "<projectname>",
     "go",
@@ -614,7 +614,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (db_operation_name) (rate(db_client_operation_duration_seconds_count{service_namespace=\"$project\",db_operation_name!=\"\"}[$__rate_interval]))",
+          "expr": "sum by (db_operation_name) (rate(db_client_operation_duration_seconds_count{service_namespace=\"$project\",pgx_operation_type=\"query\",db_operation_name!=\"\"}[$__rate_interval]))",
           "legendFormat": "{{db_operation_name}}",
           "range": true,
           "instant": false,
@@ -671,7 +671,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, db_operation_name) (rate(db_client_operation_duration_seconds_bucket{service_namespace=\"$project\",db_operation_name!=\"\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le, db_operation_name) (rate(db_client_operation_duration_seconds_bucket{service_namespace=\"$project\",pgx_operation_type=\"query\",db_operation_name!=\"\"}[$__rate_interval])))",
           "legendFormat": "{{db_operation_name}}",
           "range": true,
           "instant": false,
@@ -728,7 +728,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "topk(10, histogram_quantile(0.95, sum by (le, db_operation_name) (rate(db_client_operation_duration_seconds_bucket{service_namespace=\"$project\",db_operation_name!=\"\"}[$__range]))))",
+          "expr": "topk(10, histogram_quantile(0.95, sum by (le, db_operation_name) (rate(db_client_operation_duration_seconds_bucket{service_namespace=\"$project\",pgx_operation_type=\"query\",db_operation_name!=\"\"}[$__range]))))",
           "legendFormat": "",
           "range": false,
           "instant": true,
@@ -740,7 +740,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (db_operation_name) (increase(db_client_operation_duration_seconds_count{service_namespace=\"$project\",db_operation_name!=\"\"}[$__range]))",
+          "expr": "sum by (db_operation_name) (increase(db_client_operation_duration_seconds_count{service_namespace=\"$project\",pgx_operation_type=\"query\",db_operation_name!=\"\"}[$__range]))",
           "legendFormat": "",
           "range": false,
           "instant": true,
@@ -1554,7 +1554,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "topk(10, sum by (queryid, query) (increase(pg_stat_statements_seconds_total{service_namespace=\"$project\"}[$__range])))",
+          "expr": "topk(10, sum by (queryid) (increase(pg_stat_statements_seconds_total{service_namespace=\"$project\"}[$__range]))) * on (queryid) group_left (query) max by (queryid, query) (pg_stat_statements_query_id{service_namespace=\"$project\"})",
           "legendFormat": "",
           "range": false,
           "instant": true,
@@ -1566,7 +1566,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (queryid, query) (increase(pg_stat_statements_calls_total{service_namespace=\"$project\"}[$__range]))",
+          "expr": "sum by (queryid) (increase(pg_stat_statements_calls_total{service_namespace=\"$project\"}[$__range])) * on (queryid) group_left (query) max by (queryid, query) (pg_stat_statements_query_id{service_namespace=\"$project\"})",
           "legendFormat": "",
           "range": false,
           "instant": true,
@@ -1613,7 +1613,7 @@
           }
         ]
       },
-      "description": "From pg_stat_statements, which also counts what the app does not run, like the exporter and the backups.",
+      "description": "From pg_stat_statements, which also counts what the app does not run, like the exporter and the backups. The text is normalized by PostgreSQL and cut to 120 characters.",
       "gridPos": {
         "x": 0,
         "y": 57,

@@ -231,15 +231,15 @@ Compared with Sentry, GlitchTip loads no source code from GitHub and links no co
    ```bash
    PW=$(openssl rand -hex 24)
    printf "ALTER ROLE \"<projectname>\" PASSWORD '%s';\n" "$PW" \
-     | ssh <db-server> 'docker exec -i $(docker ps -q -f name=<stack>_db | head -1) psql -v ON_ERROR_STOP=1 -U postgres -d postgres -f -' \
+     | ssh <db-server> 'docker exec -i $(docker ps -q -f label=com.docker.swarm.service.name=<stack>_db) psql -v ON_ERROR_STOP=1 -U postgres -d postgres -f -' \
      && printf '%s' "$PW" | gh secret set DB_PASSWORD --repo <repo>
    ```
 
    `POSTGRES_PASSWORD` counts only on an empty volume too. A new value of the secret restarts `db` on the next deploy and leaves the password of the superuser as it was.
-5. **A database from before the exporter.** A volume created by an older compose has neither the role `monitoring` nor `pg_stat_statements`, so `db-exporter` can't sign in. The deploy of this compose restarts `db` with the library loaded, and then the script of the compose adds both, as the superuser over the socket of the container:
+5. **A database from before the exporter.** A volume created by an older compose has neither the role `monitoring` nor `pg_stat_statements`, so `db-exporter` can't sign in. The deploy of this compose restarts `db` with the library loaded and without utility statements in it, so the password of the role never reaches the statistics. Then the script of the compose adds both, as the superuser over the socket of the container:
 
    ```bash
-   ssh <db-server> 'docker exec $(docker ps -q -f name=<stack>_db | head -1) /docker-entrypoint-initdb.d/monitoring-role.sh'
+   ssh <db-server> 'docker exec $(docker ps -q -f label=com.docker.swarm.service.name=<stack>_db) /docker-entrypoint-initdb.d/monitoring-role.sh'
    ```
 
    It prints `CREATE ROLE`, `GRANT ROLE` and `CREATE EXTENSION`, and the exporter connects at its next scrape.
@@ -355,7 +355,7 @@ With the person's permission, because an issue is created and an email arrives:
   ```bash
   trace=$(openssl rand -hex 16)
   ssh <db-server> bash -s -- "$trace" <<'SH'
-  db=$(docker ps -qf name=<stack>_db | head -1); app=$(docker ps -qf name=<stack>_app | head -1)
+  db=$(docker ps -q -f label=com.docker.swarm.service.name=<stack>_db); app=$(docker ps -qf name=<stack>_app | head -1)
   trap 'docker exec "$db" psql -U postgres -qAt -c "ALTER ROLE \"<projectname>\" LOGIN"' EXIT
   docker exec "$db" psql -U postgres -qAt -v ON_ERROR_STOP=1 -c 'ALTER ROLE "<projectname>" NOLOGIN' \
     -c "SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '<projectname>'"
