@@ -6,7 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/trace"
 
 	"gokick/app/core/logging"
@@ -41,5 +40,5 @@ func (t *Telemetry) Middleware(untraced ...string) gin.HandlersChain {
 }
 
 func (t *Telemetry) server(provider trace.TracerProvider) gin.HandlerFunc {
-	return otelgin.Middleware("", otelgin.WithTracerProvider(provider), otelgin.WithPropagators(t.propagator), otelgin.WithMeterProvider(noop.NewMeterProvider()))
+	return otelgin.Middleware("", otelgin.WithTracerProvider(provider), otelgin.WithPropagators(t.propagator), otelgin.WithMeterProvider(t.meters))
 }

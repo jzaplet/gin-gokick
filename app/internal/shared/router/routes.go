@@ -11,14 +11,12 @@ import (
 	"gokick/app/core/health"
 	"gokick/app/core/locale"
 	"gokick/app/core/mail"
-	"gokick/app/core/metrics"
 	"gokick/app/core/ratelimit"
 	"gokick/app/core/view"
 	"gokick/app/internal/auth/failures"
 	authhandler "gokick/app/internal/auth/handler"
 	"gokick/app/internal/auth/session"
 	homehandler "gokick/app/internal/home/handler"
-	"gokick/app/internal/shared/config"
 	sharedhandler "gokick/app/internal/shared/handler"
 	userhandler "gokick/app/internal/user/handler"
 )
@@ -27,10 +25,8 @@ const readinessTimeout = 2 * time.Second
 
 func routes(
 	router *gin.Engine,
-	cfg *config.Config,
 	locales *locale.Set,
 	renderer *view.Renderer,
-	requestMetrics *metrics.Metrics,
 	pool *pgxpool.Pool,
 	mailer *mail.Mailer,
 	notFound gin.HandlerFunc,
@@ -46,7 +42,6 @@ func routes(
 	router.GET("/:lang/app/*path", locales.Prefix(notFound), sharedhandler.App(renderer))
 	router.GET("/ping", health.Ping)
 	router.GET("/readyz", health.Handler(readinessTimeout, health.Check{Name: "database", Probe: pool.Ping}))
-	router.GET("/metrics", metrics.RequireBasicAuth(cfg.Prometheus.User, cfg.Prometheus.Password), requestMetrics.Handler())
 
 	failedAttempts := ratelimit.Middleware(failures.New(pool, "auth"), 10, 15*time.Minute)
 	apiRoutes := router.Group("", api.InternalErrors())

@@ -13,7 +13,7 @@ This guide deploys a new project from this skeleton to a Docker Swarm: Cloudflar
    - SSH to `<manager>`;
    - the Sentry API answers `GET <sentry-api>/api/0/`.
 4. List the manual steps of "What the person does", with their links. Items 1 to 4 must be done before step 1, item 5 comes in step 1, item 6 at the end.
-5. Go through steps 1 to 8. The last step is the verification.
+5. Go through steps 1 to 7. The last step is the verification.
 6. Describe every write to production (the secrets and variables of `<repo>`, a run of Deploy, `<infra-repo>`, SSH to the servers, Sentry) beforehand and have it confirmed. A change of `<infra-repo>` goes through its own pull request and deploy, as its README says.
 7. Never print tokens and passwords, and never ask for them in the chat.
    - Read tokens from exported environment variables (`SENTRY_TOKEN`, `GRAFANA_TOKEN`) or from the password manager, and pass them into a header through `-H @<(printf …)`.
@@ -25,7 +25,7 @@ This guide deploys a new project from this skeleton to a Docker Swarm: Cloudflar
 
 | Placeholder | What it is | Example |
 | --- | --- | --- |
-| `<projectname>` | name of the project, which names the database, its role, the Sentry projects and the Prometheus job | `shop` |
+| `<projectname>` | name of the project, which names the database, its role, and the Sentry projects | `shop` |
 | `<domain>` | domain of the site | `shop.cz` |
 | `<repo>` | GitHub repository `owner/name` | `firma/shop` |
 | `<stack>` | Swarm stack: the name of `<repo>` in lowercase, unless the Deploy caller sets `stack` | `shop` |
@@ -53,11 +53,11 @@ The Sentry links below hold for sentry.io. A self-hosted Sentry has the same pag
 - **Secrets.** A top-level secret with `x-environment: <NAME>` becomes a Docker secret with the value of the repository secret `<NAME>`. Its name carries a hash of the value, so a new value deploys as a new secret.
   - `x-optional: true` beside it leaves the secret out when the repository lacks it, and the variable stays unset.
   - The entrypoint of `app` exports every file of `/run/secrets` as a variable of its name and then starts the app, so the app needs no `_FILE` support. `db` reads its passwords through `POSTGRES_PASSWORD_FILE` and `DB_PASSWORD_FILE`, which the PostgreSQL image and `app-role.sh` support.
-  - The deploy refuses a stack in whose rendered compose the value of any repository secret appears. The compose therefore interpolates only repository variables, and `SENTRY_DSN`, `METRICS_USER` or `SMTP_USERNAME` are never secrets.
+  - The deploy refuses a stack in whose rendered compose the value of any repository secret appears. The compose therefore interpolates only repository variables, and `SENTRY_DSN` or `SMTP_USERNAME` are never secrets.
 - **A broken version.** The app updates `start-first` with `failure_action: rollback`. When the new version doesn't start or doesn't pass the healthcheck of the image on `/readyz`, Swarm brings the previous version back and the run fails. The database updates `stop-first`, since two PostgreSQL can't share one volume, and a new app waits up to a minute for it.
 - **The database role.** The first start of `db` on an empty volume runs `docker/postgres/initdb/app-role.sh`, which creates the role `DB_USERNAME` with `DB_PASSWORD` and the database `DB_NAME`.
-- **Logs** need no step. Alloy of the infra sends the stdout of every container to Loki with the labels `service_namespace` (the stack) and `service_name` (the service without the stack), so the app logs under `{service_namespace="<stack>", service_name="app"}`.
-- **Traces** need no step either, when `<infra-repo>` runs an OTLP receiver named `otel` on `edge`. The compose sends them there with `service.namespace=<stack>` and `service.name=app`, and Tempo finds them by the `X-Trace-Id` of any response. The repository variable `OTEL_EXPORTER_OTLP_ENDPOINT` points them to another receiver, `OTEL_TRACES_SAMPLER_ARG` sends only a share, and the optional secret `OTEL_EXPORTER_OTLP_HEADERS` carries its key.
+- **Logs** need no step. Alloy of the infra sends the stdout of every container to Loki with the labels `service_namespace` (the stack) and `service_name` (the name of the Swarm service, `<stack>_<service>`), so the app logs under `{service_namespace="<stack>", service_name="<stack>_app"}`.
+- **Traces and metrics** need no step either, when `<infra-repo>` runs an OTLP receiver named `otel` on `edge` that passes metrics to Prometheus. The compose sends both there with `service.namespace=<stack>` and the name of the Swarm service, `<stack>_app`, as `service.name`, so traces, metrics and logs share one name. Tempo finds a trace by the `X-Trace-Id` of any response, and Prometheus labels the metrics `service_namespace="<stack>"`. The repository variable `OTEL_EXPORTER_OTLP_ENDPOINT` points them to another receiver, `OTEL_TRACES_SAMPLER_ARG` sends only a share of the traces, and the optional secret `OTEL_EXPORTER_OTLP_HEADERS` carries its key.
 
 ## What the person does
 
@@ -91,11 +91,10 @@ In `<infra-repo>`, wherever it keeps them:
 
 1. DNS: records `@` and `www` of `<domain>` to the public address of the edge, with the proxy of Cloudflare on.
 2. TLS: the SSL/TLS mode Full, with the certificate the infra gives Caddy for the zone.
-3. Caddy: a site that proxies `<domain>` to the app over the network `edge`, with the TLS and the Cloudflare-only rule of the other sites. Prometheus reads `/metrics` over `edge` (step 6), so the site keeps it from the internet:
+3. Caddy: a site that proxies `<domain>` to the app over the network `edge`, with the TLS and the Cloudflare-only rule of the other sites:
 
    ```caddy
    <domain> {
-   	respond /metrics 404
    	reverse_proxy <stack>_app:8020
    }
    ```
@@ -234,7 +233,7 @@ The shared Build passes the Dockerfile no build arguments and no build secret, s
    ```
 
    Mails stay off until `SMTP_ENABLED=true` with `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME` and `SMTP_SENDER_EMAIL`. The measurement tools turn on with their IDs.
-3. **The secrets.** The compose mounts `DB_PASSWORD` into the app and the database and `POSTGRES_PASSWORD` into the database, and both are required. `SMTP_PASSWORD`, `METRICS_PASSWORD` and `OTEL_EXPORTER_OTLP_HEADERS` are optional. None of them is ever a variable.
+3. **The secrets.** The compose mounts `DB_PASSWORD` into the app and the database and `POSTGRES_PASSWORD` into the database, and both are required. `SMTP_PASSWORD` and `OTEL_EXPORTER_OTLP_HEADERS` are optional. None of them is ever a variable.
 
    ```bash
    openssl rand -hex 24 | tr -d '\n' | gh secret set DB_PASSWORD --repo <repo>
@@ -242,7 +241,7 @@ The shared Build passes the Dockerfile no build arguments and no build secret, s
    gh secret list --repo <repo> --json name --jq '.[].name'
    ```
 
-   The SMTP password comes from the person or the password manager, piped the same way into `gh secret set SMTP_PASSWORD`. Step 6 sets the metrics account.
+   The SMTP password comes from the person or the password manager, piped the same way into `gh secret set SMTP_PASSWORD`.
 
 ## 4. Build and deploy
 
@@ -286,48 +285,14 @@ The label `backup: pgbackrest` under `deploy.labels` of `db` asks the deploy for
 
 To switch them on, set the variable `POSTGRES_IMAGE` to the PostgreSQL image with pgBackRest that `<infra-repo>` builds and run Deploy. That image starts pgBackRest from its own entrypoint and leaves the secrets with a `_FILE` variable to PostgreSQL.
 
-## 6. Prometheus
-
-The metrics of the app need a scrape job in the Prometheus of `<infra-repo>`. Without an account, `/metrics` answers 404 and the step can wait.
-
-1. **The account.** The user is a variable, which `gh variable get METRICS_USER --repo <repo>` reads back. The password is a secret, and the same command also hands it to the infra's Prometheus. `<store for Prometheus>` is the way `<infra-repo>` stores a secret for it from stdin (a Docker secret, for example), never its config.
-
-   ```bash
-   gh variable set METRICS_USER --repo <repo> --body "$(openssl rand -hex 16)"
-   PW=$(openssl rand -hex 32)
-   printf '%s' "$PW" | gh secret set METRICS_PASSWORD --repo <repo> && printf '%s' "$PW" | <store for Prometheus>
-   ```
-
-   Run Deploy, so the app gets the account.
-2. **The job.** Prometheus sits on the network `edge` and reads every replica of the app there:
-
-   ```yaml
-   - job_name: <projectname>
-     basic_auth:
-       username: <METRICS_USER>
-       password_file: <file with METRICS_PASSWORD>
-     dns_sd_configs:
-       - names: ["tasks.<stack>_app"]
-         type: A
-         port: 8020
-   ```
-
-Within a few tens of seconds, the job must be up:
-
-```bash
-curl -sS --fail-with-body -G -H @<(printf 'Authorization: Bearer %s' "$GRAFANA_TOKEN") \
-  "<grafana>/api/datasources/proxy/uid/<prometheus-datasource>/api/v1/query" \
-  --data-urlencode 'query=up{job="<projectname>"}' | jq -r '.data.result[].value[1]'
-```
-
-## 7. Grafana
+## 6. Grafana
 
 [grafana-dashboard.json](grafana-dashboard.json) has placeholders instead of the project name:
-- `<projectname>` in the `uid`, in the tag in `tags`, and in the default of the variable `job`;
-- `<stack>` in the default of the variable `project`, which picks the stack in Loki;
+- `<projectname>` in the `uid` and in the tag in `tags`;
+- `<stack>` in the default of the variable `project`, which picks the stack in Prometheus and Loki;
 - `<domain>` in the `title`.
 
-The row Logs reads Loki by the labels `service_namespace` and `service_name="app"`. The file in the repository stays as it is, and the import fills in the values. The `sed` patterns are written as `[<]…[>]`, so nobody mistakes them for placeholders of this guide.
+The metrics carry `service_namespace` from the OTLP export, and the row Logs reads Loki by `service_namespace` and `service_name="<stack>_app"`. The panels of CPU, container memory and the time since the last start read cAdvisor, which needs the same two labels on the containers. Series pushed over OTLP get no staleness marker, so the panels expect Prometheus with `--query.lookback-delta=2m`, which drops a stopped replica after 4 pushes, and its Grafana datasource with `timeInterval: 30s`, so `$__rate_interval` spans at least 4 pushes. The file in the repository stays as it is, and the import fills in the values. The `sed` patterns are written as `[<]…[>]`, so nobody mistakes them for placeholders of this guide.
 
 ```bash
 dashboard=$(sed -e 's/[<]projectname[>]/<projectname>/g' -e 's/[<]stack[>]/<stack>/g' -e 's/[<]domain[>]/<domain>/g' docs/grafana-dashboard.json)
@@ -339,11 +304,11 @@ jq '{dashboard: (. + {id: null}), overwrite: true, folderUid: ""}' <<<"$dashboar
 
 `grep -c` must print 0. A Grafana that loads its dashboards from the files of `<infra-repo>` takes the filled file there instead.
 
-## 8. Verification
+## 7. Verification
 
 `<SHA>` is the deployed commit, in the `data-release` of the tag `<meta name="sentry">` on `https://<domain>/<language>/app`. Claude checks these itself:
 
-- `https://<domain>/` answers 200 with `cf-cache-status: DYNAMIC`, `/readyz` 200, `/metrics` 404, and `https://www.<domain>/` 301 to the apex.
+- `https://<domain>/` answers 200 with `cf-cache-status: DYNAMIC`, `/readyz` 200, and `https://www.<domain>/` 301 to the apex.
 - `<meta name="sentry">` on `https://<domain>/<language>/app` has `data-environment="production"` and a `data-release` equal to the commit of the last run of Deploy.
 - The stack runs every service:
 
@@ -351,12 +316,20 @@ jq '{dashboard: (. + {id: null}), overwrite: true, folderUid: ""}' <<<"$dashboar
   ssh <manager> 'docker service ls --filter label=com.docker.stack.namespace=<stack> --format "{{.Name}} {{.Replicas}}"'
   ```
 
+- Prometheus has the metrics of the app. They arrive every 30 s, and the healthcheck counts too, so the number must be above 0:
+
+  ```bash
+  curl -sS --fail-with-body -G -H @<(printf 'Authorization: Bearer %s' "$GRAFANA_TOKEN") \
+    "<grafana>/api/datasources/proxy/uid/<prometheus-datasource>/api/v1/query" \
+    --data-urlencode 'query=sum(http_server_request_duration_seconds_count{service_namespace="<stack>"})' | jq -r '.data.result[0].value[1]'
+  ```
+
 - Loki has the logs of the app. The healthcheck calls `/readyz` every 30 s, so the number must be above 0:
 
   ```bash
   curl -sS --fail-with-body -G -H @<(printf 'Authorization: Bearer %s' "$GRAFANA_TOKEN") \
     "<grafana>/api/datasources/proxy/uid/<loki-datasource>/loki/api/v1/query" \
-    --data-urlencode 'query=sum(count_over_time({service_namespace="<stack>", service_name="app"}[5m]))' | jq -r '.data.result[0].value[1]'
+    --data-urlencode 'query=sum(count_over_time({service_namespace="<stack>", service_name="<stack>_app"}[5m]))' | jq -r '.data.result[0].value[1]'
   ```
 
 - securityheaders.com and MDN Observatory show A+.

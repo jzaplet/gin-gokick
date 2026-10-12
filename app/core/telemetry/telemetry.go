@@ -2,26 +2,27 @@ package telemetry
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/exaring/otelpgx"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
-	"go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/propagation"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	"gokick/app/core/logging"
 )
-
-const tracesPath = "/v1/traces"
 
 type Config struct {
 	Endpoint string
@@ -40,6 +41,8 @@ type Telemetry struct {
 
 	silent *sdktrace.TracerProvider
 
+	meters *sdkmetric.MeterProvider
+
 	propagator propagation.TextMapPropagator
 
 	logger *slog.Logger
@@ -50,12 +53,14 @@ func New(cfg Config, environment, release string, logger *slog.Logger) *Telemetr
 		logger.LogAttrs(context.Background(), slog.LevelWarn, "opentelemetry failed", logging.Err(err))
 	}))
 
-	options := append(export(cfg, logger), sdktrace.WithResource(describe(cfg, environment, release)))
+	described := describe(cfg, environment, release)
 
 	return &Telemetry{
-		provider: sdktrace.NewTracerProvider(options...),
+		provider: sdktrace.NewTracerProvider(append(tracing(cfg, logger), sdktrace.WithResource(described))...),
 
 		silent: sdktrace.NewTracerProvider(sdktrace.WithSampler(sdktrace.NeverSample())),
+
+		meters: metering(cfg, described, logger),
 
 		propagator: propagation.NewCompositeTextMapPropagator(sentryTrace{}, propagation.TraceContext{}),
 
@@ -64,26 +69,46 @@ func New(cfg Config, environment, release string, logger *slog.Logger) *Telemetr
 }
 
 func (t *Telemetry) QueryTracer() pgx.QueryTracer {
-	return otelpgx.NewTracer(otelpgx.WithTracerProvider(t.provider), otelpgx.WithMeterProvider(noop.NewMeterProvider()))
+	return otelpgx.NewTracer(otelpgx.WithTracerProvider(t.provider), otelpgx.WithMeterProvider(t.meters))
+}
+
+func (t *Telemetry) ObservePool(pool *pgxpool.Pool) {
+	if err := otelpgx.RecordStats(pool, otelpgx.WithStatsMeterProvider(t.meters)); err != nil {
+		t.logger.LogAttrs(context.Background(), slog.LevelWarn, "opentelemetry failed", logging.Err(err))
+	}
 }
 
 func (t *Telemetry) Transport(base http.RoundTripper) http.RoundTripper {
-	return otelhttp.NewTransport(base, otelhttp.WithTracerProvider(t.provider), otelhttp.WithPropagators(t.propagator), otelhttp.WithMeterProvider(noop.NewMeterProvider()))
+	return otelhttp.NewTransport(base, otelhttp.WithTracerProvider(t.provider), otelhttp.WithPropagators(t.propagator), otelhttp.WithMeterProvider(t.meters))
 }
 
 func (t *Telemetry) Shutdown(timeout time.Duration) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	if err := t.provider.Shutdown(ctx); err != nil {
+	var (
+		wg sync.WaitGroup
+
+		traces, metrics error
+	)
+
+	wg.Go(func() { traces = t.provider.Shutdown(ctx) })
+	wg.Go(func() { metrics = t.meters.Shutdown(ctx) })
+	wg.Wait()
+
+	if err := errors.Join(traces, metrics); err != nil {
 		t.logger.LogAttrs(ctx, slog.LevelWarn, "opentelemetry failed", logging.Err(err))
 	}
 }
 
 func describe(cfg Config, environment, release string) *resource.Resource {
-	attributes := make([]attribute.KeyValue, 0, len(cfg.Attributes)+3)
+	attributes := make([]attribute.KeyValue, 0, len(cfg.Attributes)+4)
 	for key, value := range cfg.Attributes {
 		attributes = append(attributes, attribute.String(key, value))
+	}
+
+	if _, set := cfg.Attributes["service.instance.id"]; set == false {
+		attributes = append(attributes, attribute.String("service.instance.id", uuid.NewString()))
 	}
 
 	attributes = append(attributes,
@@ -95,21 +120,6 @@ func describe(cfg Config, environment, release string) *resource.Resource {
 	return resource.NewSchemaless(attributes...)
 }
 
-func export(cfg Config, logger *slog.Logger) []sdktrace.TracerProviderOption {
-	off := []sdktrace.TracerProviderOption{sdktrace.WithSampler(sdktrace.NeverSample())}
-	if cfg.Endpoint == "" {
-		return off
-	}
-
-	exporter, err := otlptracehttp.New(context.Background(), otlptracehttp.WithEndpointURL(strings.TrimSuffix(cfg.Endpoint, "/")+tracesPath), otlptracehttp.WithHeaders(cfg.Headers))
-	if err != nil {
-		logger.LogAttrs(context.Background(), slog.LevelWarn, "opentelemetry failed", logging.Err(err))
-
-		return off
-	}
-
-	ratio := sdktrace.TraceIDRatioBased(cfg.SampleRatio)
-	sampler := sdktrace.ParentBased(ratio, sdktrace.WithRemoteParentSampled(ratio), sdktrace.WithRemoteParentNotSampled(ratio))
-
-	return []sdktrace.TracerProviderOption{sdktrace.WithSampler(sampler), sdktrace.WithBatcher(scrubbingExporter{exporter})}
+func endpoint(base, path string) string {
+	return strings.TrimSuffix(base, "/") + path
 }

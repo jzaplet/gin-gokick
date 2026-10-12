@@ -18,9 +18,9 @@ import (
 
 	"gokick/app/core/database"
 	"gokick/app/core/reporting"
+	"gokick/app/core/telemetry"
 	"gokick/app/core/testkit"
 	"gokick/app/internal/shared/config"
-	"gokick/app/internal/shared/config/prometheus"
 	"gokick/app/internal/shared/csp"
 	"gokick/app/internal/shared/router"
 	"gokick/app/internal/shared/routertest"
@@ -334,18 +334,33 @@ func TestNewRouterLinksThePageInEveryLanguage(t *testing.T) {
 }
 
 func TestMetricsCountTheSPAOfEveryLanguageAsOneRoute(t *testing.T) {
-	engine := bilingual(t)
-	testkit.Serve(engine, testkit.Request(t, http.MethodGet, "/cs/app/login"))
-	testkit.Serve(engine, testkit.Request(t, http.MethodGet, "/en/app/dashboard"))
-	testkit.Serve(engine, testkit.Request(t, http.MethodGet, "/en"))
-	req := testkit.Request(t, http.MethodGet, "/metrics")
-	req.SetBasicAuth("prometheus", "secret")
+	collector := testkit.Collector(t)
+	tel := telemetry.New(telemetry.Config{
+		Endpoint: collector.URL,
 
-	body := testkit.Serve(engine, req).Body.String()
-	for _, want := range []string{`route="/:lang/app/*path",status="200"} 2`, `route="/en",status="200"} 1`} {
-		if strings.Contains(body, want) == false {
-			t.Errorf("metrics lack %s: %s", want, body)
-		}
+		ServiceName: "app",
+
+		SampleRatio: 1,
+	}, "test", "v1", testkit.DiscardLogs())
+	engine := routertest.Build(t, &routertest.Parts{
+		Locales: routertest.Locales(t, "cs_CZ", "cs_CZ", "en_US"),
+
+		Telemetry: tel,
+	})
+
+	for _, path := range []string{"/cs/app/login", "/en/app/dashboard", "/en"} {
+		testkit.Serve(engine, testkit.Request(t, http.MethodGet, path))
+	}
+
+	tel.Shutdown(5 * time.Second)
+
+	counts := map[string]uint64{}
+	for _, point := range collector.Latest("http.server.request.duration") {
+		counts[point.Attributes["http.route"]+" "+point.Attributes["http.response.status_code"]] += point.Count
+	}
+
+	if counts["/:lang/app/*path 200"] != 2 || counts["/en 200"] != 1 {
+		t.Errorf("requests by route %v", counts)
 	}
 }
 
@@ -372,41 +387,6 @@ func TestNewRouterRefusesCrossSiteForms(t *testing.T) {
 	req.Header.Set("Sec-Fetch-Site", "cross-site")
 
 	if res := testkit.Serve(routertest.Build(t, &routertest.Parts{}), req); res.Code != http.StatusForbidden {
-		t.Errorf("status %d", res.Code)
-	}
-}
-
-func TestMetricsNeedTheAccount(t *testing.T) {
-	cfg := routertest.Config()
-	cfg.Prometheus = prometheus.Config{User: "prometheus", Password: "secret"}
-	engine := routertest.Build(t, &routertest.Parts{Config: cfg})
-	testkit.Serve(engine, testkit.Request(t, http.MethodGet, "/ping"))
-
-	if res := testkit.Serve(engine, testkit.Request(t, http.MethodGet, "/metrics")); res.Code != http.StatusUnauthorized {
-		t.Errorf("without the account: %d", res.Code)
-	}
-
-	wrong := testkit.Request(t, http.MethodGet, "/metrics")
-	wrong.SetBasicAuth("prometheus", "guess")
-
-	if res := testkit.Serve(engine, wrong); res.Code != http.StatusUnauthorized {
-		t.Errorf("with a wrong password: %d", res.Code)
-	}
-
-	right := testkit.Request(t, http.MethodGet, "/metrics")
-	right.SetBasicAuth("prometheus", "secret")
-
-	res := testkit.Serve(engine, right)
-	if res.Code != http.StatusOK || strings.Contains(res.Body.String(), `http_requests_total{method="GET",route="/ping",status="200"} 1`) == false {
-		t.Errorf("with the account: %d %s", res.Code, res.Body.String())
-	}
-}
-
-func TestMetricsAreOffWithoutAnAccount(t *testing.T) {
-	req := testkit.Request(t, http.MethodGet, "/metrics")
-	req.SetBasicAuth("", "")
-
-	if res := testkit.Serve(routertest.Build(t, &routertest.Parts{}), req); res.Code != http.StatusNotFound {
 		t.Errorf("status %d", res.Code)
 	}
 }
@@ -452,11 +432,7 @@ func TestReadinessFailsWithoutTheDatabase(t *testing.T) {
 func bilingual(t *testing.T) *gin.Engine {
 	t.Helper()
 
-	cfg := routertest.Config()
-	cfg.Prometheus = prometheus.Config{User: "prometheus", Password: "secret"}
-	locales := routertest.Locales(t, "cs_CZ", "cs_CZ", "en_US")
-
-	return routertest.Build(t, &routertest.Parts{Config: cfg, Locales: locales})
+	return routertest.Build(t, &routertest.Parts{Locales: routertest.Locales(t, "cs_CZ", "cs_CZ", "en_US")})
 }
 
 func homepage(t *testing.T, cfg *config.Config, browser *reporting.Browser) string {

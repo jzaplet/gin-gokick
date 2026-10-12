@@ -14,7 +14,6 @@ import (
 	"gokick/app/internal/shared/config/logs"
 	"gokick/app/internal/shared/config/otel"
 	"gokick/app/internal/shared/config/postgres"
-	"gokick/app/internal/shared/config/prometheus"
 	"gokick/app/internal/shared/config/sentry"
 	"gokick/app/internal/shared/config/server"
 	"gokick/app/internal/shared/config/smtp"
@@ -35,8 +34,6 @@ type Config struct {
 	Database database.Address
 
 	SMTP smtp.Config
-
-	Prometheus prometheus.Config
 
 	Tracking tracking.Config
 
@@ -77,10 +74,6 @@ func fromEnv() (*Config, error) {
 	}
 
 	if cfg.SMTP, err = smtp.Read(); err != nil {
-		return nil, err
-	}
-
-	if cfg.Prometheus, err = prometheus.Read(); err != nil {
 		return nil, err
 	}
 

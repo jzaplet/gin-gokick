@@ -52,7 +52,7 @@ func TestStopsAtAnInvalidSection(t *testing.T) {
 
 		"SMTP_ENABLED": "yes",
 
-		"METRICS_USER": "prometheus",
+		"OTEL_TRACES_SAMPLER_ARG": "2",
 
 		"UMAMI_WEBSITE_ID": "site",
 
