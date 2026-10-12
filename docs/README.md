@@ -422,6 +422,7 @@ It also writes a sample of numbers to `tests/assets/i18n/numbers`, against which
 
 **Logs.**
 - The app logs through one `*slog.Logger` to stdout, as JSON in production.
+- **Only stdout.** The app sends no logs over OTLP. The agent of the platform reads its stdout, Alloy in production, so every line reaches Loki, also an invalid configuration, which stops the app before telemetry starts, and the dump of a crash. Grafana links a line and its trace by the `trace_id` in the JSON.
 - Every request logs the `trace_id` of its trace (see Traces), which `X-Trace-Id` returns too. A route behind the session adds `user_id`.
 - **The access log** writes the method, the route pattern in `path`, the status, the IP, the size, `duration_ms`, the reported errors and the warnings. A token in the path of a matched route stays out. A request no route matched (an unknown path, a public file) logs its real path. The query goes into `query`, because tokens never travel in it (see Measurement and consent).
   - 5xx and panics log at `error`, and a warning without 5xx at `warn`.

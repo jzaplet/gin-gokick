@@ -319,7 +319,7 @@ These were chosen with their costs in mind. Don't propose to undo them.
 - **Operations.**
   - Metrics go out over OTLP with the traces.
   - The access log keeps `/ping` and `/readyz`.
-  - Logs are slog on stdout, JSON by default. Traces go through OpenTelemetry over OTLP/HTTP, and the trace ID of the log, Sentry and `X-Trace-Id` is the one of the server span.
+  - Logs are slog on stdout, JSON by default, and never go out over OTLP. The agent of the platform reads stdout, so a crash and a failed start reach the logs too. Traces go through OpenTelemetry over OTLP/HTTP, and the trace ID of the log, Sentry and `X-Trace-Id` is the one of the server span.
 - **CSP and measurement.**
   - The CSP comes from our own middleware, with nonces, `strict-dynamic` and Trusted Types.
   - `img-src` and `connect-src` allow `https:`.
