@@ -64,7 +64,7 @@ go run ./app            # in a second terminal: http://localhost:8020
 | `tools/` | `tsgen` and `i18n` with their shared `codegen`, `codestyle`, the ESLint plugin `codestyle` in `tools/eslint`, and sqlc pinned in its own module |
 | `tests/` | the Vitest tests of the frontend and of the ESLint plugin |
 | `docker/` | the production Dockerfile, the compose of the production Swarm stack and the script that creates the database role |
-| `docs/` | this document, the [first deploy](first-deploy.md) and a Grafana dashboard |
+| `docs/` | this document, the [first deploy](first-deploy.md) and six Grafana boards in `grafana/` |
 
 `views/`, `public/` and `migrations/` are embedded into the binary, and `locale/` is compiled into it. `app/main.go` stays under `app/`, because Go lets only packages under `app/` import `app/internal`.
 
@@ -99,6 +99,7 @@ The app reads the environment, and `.env` fills in what the environment lacks. `
 | `GOOGLE_ADS_CONVERSIONS` | empty | conversion labels (`sign_up=AbC-D_efG`); an unknown conversion stops the start |
 | `APP_DOMAIN`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | — | not read by the app: the domain for both composes (locally `.env.example` builds `DB_HOST`, `SMTP_HOST` and `SMTP_SENDER_EMAIL` from it, and each compose the `APP_URL` of its container) and the PostgreSQL superuser |
 | `GLITCHTIP_URL`, `GLITCHTIP_ORG`, `GLITCHTIP_PROJECT`, `GLITCHTIP_AUTH_TOKEN` | — | only for the Docker build: the source maps of the frontend |
+| `DB_MONITORING_PASSWORD` | — | only in production, not read by the app: the password of the role `monitoring`, which the exporter of PostgreSQL signs in with |
 
 `app/internal/shared/config` puts `Config` together from one package per section of `.env.example`. The exceptions are `TRUSTED_PROXIES`, which the server package reads, and the GlitchTip build section, which the app never reads.
 
@@ -437,10 +438,11 @@ It also writes a sample of numbers to `tests/assets/i18n/numbers`, against which
 
 **Traces.** `app/core/telemetry` sends them through OpenTelemetry over OTLP/HTTP to `OTEL_EXPORTER_OTLP_ENDPOINT`.
 - **One trace ID.** Every request belongs to a trace: the one of an incoming W3C `traceparent`, else of the frontend's `sentry-trace`, else a new one. The log, the GlitchTip event, the span and `X-Trace-Id` carry the same ID, with telemetry off too.
-- **Spans.** `otelgin` opens a server span named by the method and the route pattern. `otelpgx` adds a span per query, and `telemetry.Transport` one per outgoing request, which carries `traceparent` on.
+- **Spans.** `otelgin` opens a server span named by the method and the route pattern. `otelpgx` adds a span per query, named by the `-- name:` line sqlc writes above it, or by the first word of other SQL (`SELECT`). `telemetry.Transport` adds one per outgoing request, which carries `traceparent` on.
 - **What is never sent:** `/ping`, `/readyz`, public files and unknown paths. They keep their trace ID.
 - **What the spans carry.** The server span has the route pattern, the query and the `User-Agent`. A wrapper drops the client's IP and port and the real path before the export; the IP is in the access log line with the same `trace_id`. An outgoing request keeps its full URL with the query, except a host that puts a secret into the URL (`api.telegram.org`), which keeps only its origin. A query span carries its SQL, never its parameters.
 - **Errors on the span.** `reporting.Error`, `reporting.Warning` and a recovered panic add an `exception` event to the server span, with the message and the stack of the call. An error and a panic mark the span as failed, and a warning leaves its status as it is.
+- **Business events on the span.** A business event (see below) adds an event of its name to the span, without its attributes.
 - **Sampling.** `OTEL_TRACES_SAMPLER_ARG` decides once per trace by its ID. It ignores the sampled flag of a remote parent, because the Sentry SDK in the browser sends every `traceparent` as not sampled.
 - **Off without an endpoint.** Without `OTEL_EXPORTER_OTLP_ENDPOINT` the app sends nothing, whatever other `OTEL_*` variable is set.
 - **Errors of the export** go to the log as warnings, and telemetry never stops the start. At shutdown the app sends what is left of the traces and the metrics at once, for at most 2 s.
@@ -466,14 +468,34 @@ It also writes a sample of numbers to `tests/assets/i18n/numbers`, against which
 | Metric | Type | Attributes |
 | --- | --- | --- |
 | `http.server.request.duration` | histogram in seconds | `http.request.method`, `http.route`, `http.response.status_code`, `error.type` |
+| `http.server.active_requests` | gauge | requests in progress, health checks too |
 | `http.client.request.duration` | histogram in seconds | outgoing requests of `telemetry.Transport` by method, host and status |
-| `db.client.operation.duration`, `db.client.operation.errors` | histogram, counter | queries by operation |
+| `db.client.operation.duration`, `db.client.operation.errors` | histogram, counter | `pgx.operation.type` (`query`, `acquire`, `connect`), and for a query `db.operation.name`, the name of its span |
 | `pgxpool.*` | gauges and counters | connections of the pool: idle, acquired, total, and the waits for one |
-| `go.*` | runtime of Go | memory, goroutines, the goal of the GC, the processors |
+| `go.*` | runtime of Go | memory, goroutines, the goal of the GC, the processors, and `go.schedule.duration`, how long a goroutine waited for a thread |
+| `business.events` | counter | `event`, the name of a business event |
+| `auth.sessions.active` | gauge | sessions that have not expired, the same number from every instance |
 
 - `http.route` is the route pattern, so tokens stay out and the series stay few. A request no route matched has none. Every request counts, health checks too.
+- **Exemplars.** A measurement inside a sampled trace carries its trace ID, so Grafana links a point of a latency graph to its trace. Prometheus keeps them only with exemplar storage on.
+- **Gauges.** `tel.Gauge(name, description, observe)` asks `observe` at every export, within 2 s. A failed `observe` logs a warning and drops only its own point, because an error returned to OpenTelemetry would drop the whole export. A query in `observe` makes no span, because it runs outside a request.
 - A view keeps only the four attributes of `http.server.request.duration` and drops the histograms of body sizes.
 - The production compose names the app after Swarm. `service.name` is the name of the service (`<stack>_app`), the same as `service_name` of its logs in Loki. `service.instance.id` is the name of the task, which is also the name of its container (`<stack>_app.1.<task ID>`), so it tells the replicas apart. Prometheus writes the names with underscores and units (`http_server_request_duration_seconds`) and the attributes as labels (`http_route`).
+
+**Business events.** `business.Recorder` records what the business follows: `events.Record(ctx, event, attrs...)`.
+- **One call, three places.** The event becomes a log line `business event` at `info` with `event` and the attributes, a count of `business.events` by `event`, and an event of its name on the span. The log line carries the `trace_id` of the request.
+- **Attributes go only to the log.** The metric counts by name, so its series stay as few as the events. The span gets no attributes, because its export never checks them for personal data.
+- **Events of the skeleton:**
+
+  | Event | When |
+  | --- | --- |
+  | `auth.login_succeeded`, `auth.login_failed` | a sign-in with the right password, or with a wrong password or an unknown email |
+  | `auth.registered` | a new account with its session |
+  | `request.attempts_limited` | `ratelimit.Middleware` refused a request at its limit |
+  | `mail.sent`, `mail.failed` | the mailer handed a mail to its sender, or failed to render or send it, with its template in `mail` |
+
+  `mail.sent` counts a mail the mailer gave to the sender, also with `SMTP_ENABLED=false`, when the sender drops it.
+- The board Overview draws every event, so a new one shows there without a change of the board.
 
 **Health.** `/readyz` checks the database within 2 s and answers 200, or 503 with the state of each check without the error text.
 
@@ -506,15 +528,30 @@ Each tool is switched on by its ID in the environment and runs without Google Ta
 - Its `assets` stage copies only what the frontend build needs.
 - The healthcheck asks `/readyz` every 30 s.
 
-**Docker Swarm.** `docker/production/compose.yaml` is the production stack: the app and PostgreSQL 18 on the nodes whose label `role` the deploy passes as `ROLE`. Shared GitHub Actions workflows build the image of every commit and deploy the stack with the image of the chosen commit.
+**Docker Swarm.** `docker/production/compose.yaml` is the production stack: the app, PostgreSQL 18 and its exporter on the nodes whose label `role` the deploy passes as `ROLE`. Shared GitHub Actions workflows build the image of every commit and deploy the stack with the image of the chosen commit.
 - The app sits on the stack's network, where it reaches `db`, and on the external network `edge`, where the reverse proxy and the OTLP receiver are.
 - An update starts the new app before it stops the old one, and rolls back when the new one fails its healthcheck. PostgreSQL stops first, because two instances can't share its volume. When a deploy changes both, the new app waits for the restarted database.
-- The passwords arrive as Docker secrets, so `docker service inspect` never shows them. The entrypoint of `app` exports every file of `/run/secrets` as a variable of its name, and the app reads them like any other variable. PostgreSQL and `app-role.sh` read theirs through `POSTGRES_PASSWORD_FILE` and `DB_PASSWORD_FILE`.
+- The passwords arrive as Docker secrets, so `docker service inspect` never shows them. The entrypoint of `app` exports every file of `/run/secrets` as a variable of its name, and the app reads them like any other variable. PostgreSQL and `app-role.sh` read theirs through `POSTGRES_PASSWORD_FILE` and `DB_PASSWORD_FILE`, `monitoring-role.sh` and the exporter through `DB_MONITORING_PASSWORD_FILE` and `DATA_SOURCE_PASS_FILE`.
+- **The exporter of PostgreSQL.** `db` loads `pg_stat_statements`, and `db-exporter` (`postgres_exporter`) reads the statistics of the server as the role `monitoring` with `pg_monitor`: connections, transactions, the cache, locks, deadlocks, sizes and the statements that take the most time, with their text normalized by PostgreSQL and cut to 120 characters. It sits on the stack's network and on `edge`, where the platform scrapes its port 9187; the database itself stays off `edge`. The first start of `db` on an empty volume creates the role and the extension; [first-deploy.md](first-deploy.md) says how to add them to an older database.
 - Everything else comes from repository variables, or the compose fixes it (release mode, JSON logs, the environment `production`, the commit as the release).
 
 **Caddy and Cloudflare.** Cloudflare proxies the domain to Caddy, and Caddy proxies it over `edge` to the app. Caddy passes `CF-Connecting-IP` unchanged. For requests without it, the compose sets `TRUSTED_PROXIES` to the overlay address pool of the Swarm (`10.64.0.0/12`), so gin skips Caddy's address. A Swarm with another `--default-addr-pool` needs that range changed.
 
 **Logs, traces and metrics.** Alloy sends the logs of every container to Loki with the stack and the service as labels, so the app needs no setup for them. The compose sends the traces and metrics to `http://otel:4318`, the OTLP receiver on `edge`, with the stack as `service.namespace`; the repository variable `OTEL_EXPORTER_OTLP_ENDPOINT` points them elsewhere.
+
+**Grafana.** `docs/grafana/` holds six boards of a project, linked to each other and marked with every deploy:
+
+| Board | Answers |
+| --- | --- |
+| `overview.json` | Is it fine? Availability and duration of the probe of `/readyz`, replicas, the last deploy, the backups, requests, 5xx and p95 of the app and of the edge, error lines, issues of GlitchTip, business events and the SLO |
+| `http.json` | Requests by route and status, p50, p95 and p99 with exemplars, the slowest routes, requests in progress, the time at the edge and the slow requests from Tempo |
+| `database.json` | Queries by name, their p95 and failures, the slow queries from Tempo, the pool, the statistics of PostgreSQL, the container of the database and the backups |
+| `runtime.json` | CPU and memory against the limit, OOM kills and failed tasks, the memory of Go, allocations, goroutines, the scheduler, threads and file descriptors |
+| `logs.json` | Lines by level, the most frequent errors, 4xx and 5xx by path, business events and the logs of the other services of the stack |
+| `traces.json` | The service map, the span metrics of Tempo, outgoing HTTP by host, and the slowest and failed traces |
+
+- **The SLO.** 99.9 % of the probes of `/readyz` pass and 99 % of the requests other than `/readyz` and `/ping` take under 500 ms, both over 30 days. The board shows what is left of each budget and its burn rate over 1 h and 6 h; a burn rate of 1 spends the budget in exactly 30 days.
+- [first-deploy.md](first-deploy.md) says what the boards need from the platform and how to load them.
 
 **The first deploy.** [first-deploy.md](first-deploy.md) walks through it: Cloudflare and Caddy, GlitchTip, the workflows with their variables and secrets, the deploy, backups, Grafana and the checks.
 

@@ -121,6 +121,38 @@ func TestLoginIsLimited(t *testing.T) {
 	}
 }
 
+func TestLoginRecordsItsOutcome(t *testing.T) {
+	for want, tc := range map[string]struct {
+		setup string
+
+		body string
+	}{
+		"auth.login_succeeded": {body: jan},
+
+		"auth.login_failed": {body: `{"email":"jan@example.com","password":"correct horse battery!"}`},
+
+		"request.attempts_limited": {setup: tenFailures, body: jan},
+	} {
+		t.Run(want, func(t *testing.T) {
+			engine, pool, logs := routertest.WithLogs(t)
+			testkit.Serve(engine, testkit.JSONRequest(t, http.MethodPost, "/api/auth/register", jan))
+
+			if tc.setup != "" {
+				if _, err := pool.Exec(t.Context(), tc.setup); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			logs.Reset()
+			testkit.Serve(engine, testkit.JSONRequest(t, http.MethodPost, "/api/auth/login", tc.body))
+
+			if events := testkit.RecordedEvents(t, logs); len(events) != 1 || events[0] != want {
+				t.Errorf("events %v", events)
+			}
+		})
+	}
+}
+
 func TestLoginAnswersInTheEnvelopeWhenTheDatabaseFails(t *testing.T) {
 	engine, pool := routertest.New(t)
 	pool.Close()

@@ -69,12 +69,17 @@ func New(cfg Config, environment, release string, logger *slog.Logger) *Telemetr
 }
 
 func (t *Telemetry) QueryTracer() pgx.QueryTracer {
-	return otelpgx.NewTracer(otelpgx.WithTracerProvider(t.provider), otelpgx.WithMeterProvider(t.meters))
+	return otelpgx.NewTracer(
+		otelpgx.WithTracerProvider(t.provider),
+		otelpgx.WithMeterProvider(t.meters),
+		otelpgx.WithSpanNameCtxFunc(queryName),
+		otelpgx.WithMetricOperationName(queryName),
+	)
 }
 
 func (t *Telemetry) ObservePool(pool *pgxpool.Pool) {
 	if err := otelpgx.RecordStats(pool, otelpgx.WithStatsMeterProvider(t.meters)); err != nil {
-		t.logger.LogAttrs(context.Background(), slog.LevelWarn, "opentelemetry failed", logging.Err(err))
+		t.warn(err)
 	}
 }
 

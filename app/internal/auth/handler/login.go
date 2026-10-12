@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"gokick/app/core/api"
+	"gokick/app/core/business"
 	"gokick/app/core/cookie"
 	"gokick/app/core/locale"
 	"gokick/app/core/password"
@@ -20,6 +21,10 @@ import (
 )
 
 const KeyLoginFailed api.Key = "auth.login_failed"
+
+const EventLoginSucceeded business.Event = "auth.login_succeeded"
+
+const EventLoginFailed business.Event = "auth.login_failed"
 
 //tsgen:assets/app/Auth/types/LoginRequest.ts LoginRequest request
 type loginRequest struct {
@@ -35,7 +40,7 @@ type signedInUser struct {
 	Locale string `json:"locale"`
 }
 
-func Login(pool *pgxpool.Pool, locales *locale.Set) gin.HandlerFunc {
+func Login(pool *pgxpool.Pool, locales *locale.Set, events *business.Recorder) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req loginRequest
 		if api.Bind(c, &req) == false {
@@ -46,6 +51,8 @@ func Login(pool *pgxpool.Pool, locales *locale.Set) gin.HandlerFunc {
 
 		user, rehash, err := accounts.Authenticate(c.Request.Context(), req.Email, req.Password)
 		if errors.Is(err, account.ErrLoginFailed) {
+			events.Record(c.Request.Context(), EventLoginFailed)
+
 			if recordErr := ratelimit.Failed(c); recordErr != nil {
 				reporting.Error(c, recordErr)
 
@@ -80,6 +87,7 @@ func Login(pool *pgxpool.Pool, locales *locale.Set) gin.HandlerFunc {
 		}
 
 		cookie.Set(c.Writer, session.CookieName, token, session.Lifetime)
+		events.Record(c.Request.Context(), EventLoginSucceeded)
 		api.JSON(c, http.StatusOK, signedInUser{ID: user.ID, Locale: locales.Nearest(user.Locale).String()})
 	}
 }

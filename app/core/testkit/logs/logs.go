@@ -36,3 +36,16 @@ func Entries(tb testing.TB, buf *bytes.Buffer) []map[string]any {
 
 	return entries
 }
+
+func Events(tb testing.TB, buf *bytes.Buffer) []string {
+	tb.Helper()
+	var events []string
+
+	for _, entry := range Entries(tb, buf) {
+		if event, recorded := entry[logging.KeyEvent].(string); recorded {
+			events = append(events, event)
+		}
+	}
+
+	return events
+}

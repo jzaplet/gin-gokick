@@ -145,6 +145,17 @@ func TestUserFindsNoExpiredOrUnknownSession(t *testing.T) {
 	}
 }
 
+func TestActiveCountsOnlyTheLiveSessions(t *testing.T) {
+	pool := testkit.Pool(t, migrations.FS)
+	userID := newUser(t, pool)
+	addSession(t, pool, userID, "live", time.Hour)
+	addSession(t, pool, userID, "expired", -time.Minute)
+
+	if active, err := session.New(pool).Active(t.Context()); active != 1 || err != nil {
+		t.Errorf("got %d, %v", active, err)
+	}
+}
+
 func TestUserFailsWhenTheDatabaseFails(t *testing.T) {
 	pool := testkit.Pool(t, migrations.FS)
 	pool.Close()

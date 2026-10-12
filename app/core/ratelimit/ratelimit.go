@@ -10,10 +10,13 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"gokick/app/core/api"
+	"gokick/app/core/business"
 	"gokick/app/core/reporting"
 )
 
 const KeyTooManyAttempts api.Key = "request.too_many_attempts"
+
+const EventLimited business.Event = "request.attempts_limited"
 
 const ipv6NetworkBits = 64
 
@@ -35,7 +38,7 @@ type attempt struct {
 	window time.Duration
 }
 
-func Middleware(store Store, limit int64, window time.Duration) gin.HandlerFunc {
+func Middleware(store Store, limit int64, window time.Duration, events *business.Recorder) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		network := Network(c.ClientIP())
 
@@ -48,6 +51,7 @@ func Middleware(store Store, limit int64, window time.Duration) gin.HandlerFunc 
 		}
 
 		if failures >= limit {
+			events.Record(c.Request.Context(), EventLimited)
 			api.Fail(c, http.StatusTooManyRequests, KeyTooManyAttempts)
 
 			return

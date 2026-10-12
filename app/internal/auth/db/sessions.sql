@@ -37,3 +37,6 @@ WHERE user_id = @user_id AND id = ANY(@ids::uuid[]) AND token_hash <> @current_h
 -- name: EndOtherUserSessions :execrows
 DELETE FROM sessions
 WHERE user_id = @user_id AND token_hash <> @current_hash AND expires_at > now() AND (@ip::text = '' OR strpos(host(last_seen_ip), lower(@ip::text)) > 0);
+
+-- name: CountActiveSessions :one
+SELECT count(*) FROM sessions WHERE expires_at > now();

@@ -2,6 +2,8 @@ package telemetry_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -134,10 +136,14 @@ func TestMetricsCountRequestsByTheirRoutePattern(t *testing.T) {
 		}
 	}
 
-	for _, runtime := range []string{"go.goroutine.count", "go.memory.used"} {
+	for _, runtime := range []string{"go.goroutine.count", "go.memory.used", "go.schedule.duration"} {
 		if slices.Contains(names, runtime) == false {
 			t.Errorf("%s is missing from %v", runtime, names)
 		}
+	}
+
+	if active := collector.Latest("http.server.active_requests"); len(active) != 1 || active[0].Value != 0 {
+		t.Errorf("active requests after the requests ended %+v", active)
 	}
 }
 
@@ -183,7 +189,7 @@ func TestShutdownSendsTheMetricsWhileTheTracesHang(t *testing.T) {
 	}
 }
 
-func TestPoolAndQueryMetricsAreSent(t *testing.T) {
+func TestQueriesAreNamedBySqlcOrByTheirOperation(t *testing.T) {
 	collector := testkit.Collector(t)
 	tel := start(t, collector.URL, testkit.DiscardLogs())
 
@@ -195,17 +201,56 @@ func TestPoolAndQueryMetricsAreSent(t *testing.T) {
 	t.Cleanup(pool.Close)
 	tel.ObservePool(pool)
 
-	if _, err := pool.Exec(t.Context(), "SELECT 1"); err != nil {
-		t.Fatal(err)
-	}
+	router := newRouter(t, tel)
+	router.GET("/queries", func(c *gin.Context) {
+		for _, query := range []string{"-- name: CountNotes :one\nSELECT 1", "SELECT 1"} {
+			if _, err := pool.Exec(c.Request.Context(), query); err != nil {
+				c.Status(http.StatusInternalServerError)
 
+				return
+			}
+		}
+
+		c.Status(http.StatusNoContent)
+	})
+
+	testkit.Serve(router, testkit.Request(t, http.MethodGet, "/queries"))
 	tel.Shutdown(5 * time.Second)
 
-	names := collector.Metrics()
-	for _, want := range []string{"pgxpool.total_connections", "db.client.operation.duration"} {
-		if slices.Contains(names, want) == false {
-			t.Errorf("%s is missing from %v", want, names)
-		}
+	var spans []string
+	for _, span := range collector.Spans() {
+		spans = append(spans, span.Name)
+	}
+
+	operations := map[string]bool{}
+	for _, point := range collector.Latest("db.client.operation.duration") {
+		operations[point.Attributes["db.operation.name"]] = true
+	}
+
+	if slices.Contains(spans, "CountNotes") == false || slices.Contains(spans, "SELECT") == false || operations["CountNotes"] == false || operations["SELECT"] == false {
+		t.Errorf("spans %v, operations %v", spans, operations)
+	}
+
+	if slices.Contains(collector.Metrics(), "pgxpool.total_connections") == false {
+		t.Errorf("pool metrics are missing from %v", collector.Metrics())
+	}
+}
+
+func TestAFailingGaugeReachesTheLogAndStopsNoOtherMetric(t *testing.T) {
+	collector := testkit.Collector(t)
+	logger, logs := testkit.CaptureLogs()
+	tel := start(t, collector.URL, logger)
+
+	tel.Gauge("notes.open", "Open notes.", func(context.Context) (int64, error) { return 7, nil })
+	tel.Gauge("notes.archived", "Archived notes.", func(context.Context) (int64, error) { return 0, errors.New("notes are gone") })
+	tel.Shutdown(5 * time.Second)
+
+	if open := collector.Latest("notes.open"); len(open) != 1 || open[0].Value != 7 {
+		t.Errorf("open notes %+v", open)
+	}
+
+	if entries := testkit.LogEntries(t, logs); len(entries) != 1 || entries[0]["level"] != "WARN" || strings.Contains(fmt.Sprint(entries[0]["error"]), "notes.archived: notes are gone") == false {
+		t.Errorf("log %v", entries)
 	}
 }
 

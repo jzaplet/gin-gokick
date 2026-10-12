@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"gokick/app/core/business"
 	"gokick/app/core/httpserver"
 	"gokick/app/core/locale"
 	"gokick/app/core/mail"
@@ -65,9 +66,10 @@ func NewRouter(
 		return nil, err
 	}
 
-	mailer := mail.NewMailer(renderer, sender, cfg.App.URL)
+	events := business.New(logger, tel)
+	mailer := mail.NewMailer(renderer, sender, cfg.App.URL, events)
 	notFound := sharedhandler.NotFound(renderer, locales)
-	routes(router, locales, renderer, pool, mailer, notFound)
+	routes(router, locales, renderer, pool, mailer, events, notFound)
 
 	assets.Register(router)
 	files.Register(router, notFound)
