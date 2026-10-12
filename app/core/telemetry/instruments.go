@@ -37,25 +37,43 @@ func (c Counter) Increment(ctx context.Context, attrs ...slog.Attr) {
 	c.counter.Add(ctx, 1, metric.WithAttributes(attributes(attrs)...))
 }
 
-func (t *Telemetry) Gauge(name, description string, observe func(context.Context) (int64, error)) {
-	callback := func(ctx context.Context, observer metric.Int64Observer) error {
+func (t *Telemetry) Gauge(name, description string, observe func(context.Context) (int64, error)) (stop func()) {
+	meter := t.meters.Meter(scope)
+
+	gauge, err := meter.Int64ObservableGauge(name, metric.WithDescription(description))
+	if err != nil {
+		t.warn(err)
+
+		return func() {}
+	}
+
+	callback := func(ctx context.Context, observer metric.Observer) error {
 		ctx, cancel := context.WithTimeout(ctx, observeTimeout)
 		defer cancel()
 
-		value, err := observe(ctx)
-		if err != nil {
-			t.warn(fmt.Errorf("gauge %s: %w", name, err))
+		value, observeErr := observe(ctx)
+		if observeErr != nil {
+			t.warn(fmt.Errorf("gauge %s: %w", name, observeErr))
 
 			return nil
 		}
 
-		observer.Observe(value)
+		observer.ObserveInt64(gauge, value)
 
 		return nil
 	}
 
-	if _, err := t.meters.Meter(scope).Int64ObservableGauge(name, metric.WithDescription(description), metric.WithInt64Callback(callback)); err != nil {
+	registration, err := meter.RegisterCallback(callback, gauge)
+	if err != nil {
 		t.warn(err)
+
+		return func() {}
+	}
+
+	return func() {
+		if err := registration.Unregister(); err != nil {
+			t.warn(err)
+		}
 	}
 }
 

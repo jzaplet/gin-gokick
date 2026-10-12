@@ -241,8 +241,8 @@ func TestAFailingGaugeReachesTheLogAndStopsNoOtherMetric(t *testing.T) {
 	logger, logs := testkit.CaptureLogs()
 	tel := start(t, collector.URL, logger)
 
-	tel.Gauge("notes.open", "Open notes.", func(context.Context) (int64, error) { return 7, nil })
-	tel.Gauge("notes.archived", "Archived notes.", func(context.Context) (int64, error) { return 0, errors.New("notes are gone") })
+	_ = tel.Gauge("notes.open", "Open notes.", func(context.Context) (int64, error) { return 7, nil })
+	_ = tel.Gauge("notes.archived", "Archived notes.", func(context.Context) (int64, error) { return 0, errors.New("notes are gone") })
 	tel.Shutdown(5 * time.Second)
 
 	if open := collector.Latest("notes.open"); len(open) != 1 || open[0].Value != 7 {

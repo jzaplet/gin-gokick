@@ -758,7 +758,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (http_route) (increase(http_server_request_duration_seconds_count{service_namespace=\"$project\"}[$__range]))",
+          "expr": "round(sum by (http_route) (increase(http_server_request_duration_seconds_count{service_namespace=\"$project\"}[$__range]))) and on (http_route) topk(10, histogram_quantile(0.95, sum by (le, http_route) (rate(http_server_request_duration_seconds_bucket{service_namespace=\"$project\"}[$__range]))))",
           "legendFormat": "",
           "range": false,
           "instant": true,
@@ -792,7 +792,24 @@
             "align": "auto"
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Requests"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "showHeader": true,

@@ -118,7 +118,7 @@ docker build -f docker/production/Dockerfile . &&
   - a route nobody needs in traces, like a health check, joins the list `tel.Middleware` gets in `router.go`;
   - an attribute that can carry personal data joins `personal` in `app/core/telemetry`, which the export drops;
   - a service that puts a secret into its URL, like the Telegram bot API, joins `secretInURL` there, whose URLs the export shortens to the origin;
-  - a number the business follows over time, like the active sessions, becomes `tel.Gauge` in `main.go` beside `tel.ObservePool`, with a function of its domain package that counts it.
+  - a number the business follows over time, like the active sessions, becomes `tel.Gauge` in `main.go` beside `tel.ObservePool`, with a function of its domain package that counts it, and its stop is deferred after the pool closes.
 - **Undo.** When a later step of a handler fails, undo the earlier one through that domain's own function (`accounts.Delete` in `authhandler.Register`).
   - Run the undo on `context.WithoutCancel` with its own timeout.
   - Report both errors, the failed step first.

@@ -478,7 +478,7 @@ It also writes a sample of numbers to `tests/assets/i18n/numbers`, against which
 
 - `http.route` is the route pattern, so tokens stay out and the series stay few. A request no route matched has none. Every request counts, health checks too.
 - **Exemplars.** A measurement inside a sampled trace carries its trace ID, so Grafana links a point of a latency graph to its trace. Prometheus keeps them only with exemplar storage on.
-- **Gauges.** `tel.Gauge(name, description, observe)` asks `observe` at every export, within 2 s. A failed `observe` logs a warning and drops only its own point, because an error returned to OpenTelemetry would drop the whole export. A query in `observe` makes no span, because it runs outside a request.
+- **Gauges.** `tel.Gauge(name, description, observe)` asks `observe` at every export, within 2 s, until the function it returns stops it. `main.go` defers that stop after it closes the pool, so the last export at shutdown asks no closed pool. A failed `observe` logs a warning and drops only its own point, because an error returned to OpenTelemetry would drop the whole export. A query in `observe` makes no span, because it runs outside a request.
 - A view keeps only the four attributes of `http.server.request.duration` and drops the histograms of body sizes.
 - The production compose names the app after Swarm. `service.name` is the name of the service (`<stack>_app`), the same as `service_name` of its logs in Loki. `service.instance.id` is the name of the task, which is also the name of its container (`<stack>_app.1.<task ID>`), so it tells the replicas apart. Prometheus writes the names with underscores and units (`http_server_request_duration_seconds`) and the attributes as labels (`http_route`).
 

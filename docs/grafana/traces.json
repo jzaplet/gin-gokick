@@ -119,10 +119,7 @@
             "uid": "${traces}"
           },
           "queryType": "serviceMap",
-          "serviceMapQuery": [
-            "{client=\"${project}_app\"}",
-            "{server=\"${project}_app\"}"
-          ],
+          "serviceMapQuery": "{service_namespace=\"$project\"}",
           "refId": "A"
         }
       ],
