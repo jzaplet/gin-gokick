@@ -78,7 +78,7 @@ func run() int {
 		logger.WarnContext(ctx, "mail is off, SMTP_ENABLED is not true")
 	}
 
-	reporter, err := reporting.New(cfg.Sentry.DSN, cfg.App.Environment, cfg.App.Release)
+	reporter, err := reporting.New(cfg.GlitchTip.DSN, cfg.App.Environment, cfg.App.Release)
 	if err != nil {
 		logger.ErrorContext(ctx, "cannot start error reporting", logging.Err(err))
 
@@ -86,7 +86,7 @@ func run() int {
 	}
 	defer reporter.Flush(reportFlushTimeout)
 
-	browser := reporting.NewBrowser(cfg.Sentry.FrontendDSN, cfg.App.Environment, cfg.App.Release)
+	browser := reporting.NewBrowser(cfg.GlitchTip.FrontendDSN, cfg.App.Environment, cfg.App.Release)
 
 	pool, err := database.Open(ctx, cfg.Database.URL(), databaseWait, tel.QueryTracer())
 	if err != nil {

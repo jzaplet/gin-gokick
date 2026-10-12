@@ -15,9 +15,11 @@ const outDir = 'public/build';
 const fileOnly = /\.(?:woff2?|ttf|otf|eot|svg|png)$/;
 
 const {
-    SENTRY_UPLOAD_TOKEN: sentryToken = '',
-    SENTRY_RELEASE: release = '',
-    SENTRY_REPOSITORY: repository = '',
+    GLITCHTIP_AUTH_TOKEN: glitchtipToken = '',
+    GLITCHTIP_URL: glitchtipUrl = '',
+    GLITCHTIP_ORG: glitchtipOrg = '',
+    GLITCHTIP_PROJECT: glitchtipProject = '',
+    APP_RELEASE: release = '',
 } = process.env;
 
 const hot = (): Plugin => {
@@ -75,25 +77,26 @@ const removeFailedBuild = (): Plugin => {
     };
 };
 
-const sentry = (): PluginOption[] => {
-    if (sentryToken === '') {
+const glitchtip = (): PluginOption[] => {
+    if (glitchtipToken === '') {
         return [];
     }
 
+    if (glitchtipUrl === '') {
+        throw new Error('GLITCHTIP_AUTH_TOKEN needs GLITCHTIP_URL');
+    }
+
     return sentryVitePlugin({
-        authToken: sentryToken,
+        url: glitchtipUrl,
+        org: glitchtipOrg,
+        project: glitchtipProject,
+        authToken: glitchtipToken,
         telemetry: false,
         release: {
             name: release,
             inject: false,
-            setCommits: repository === ''
-                ? false
-                : {
-                        repo: repository,
-                        commit: release,
-                        ignoreMissing: true,
-                    },
-            deploy: { env: 'production' },
+            create: false,
+            finalize: false,
         },
         sourcemaps: { filesToDeleteAfterUpload: [`${outDir}/**/*.map`] },
         errorHandler: (error) => {
@@ -110,7 +113,7 @@ export default defineConfig({
         vue(),
         hot(),
         removeFailedBuild(),
-        sentry(),
+        glitchtip(),
     ],
     resolve: { alias: { '@': fileURLToPath(new URL('assets', import.meta.url)) } },
     appType: 'custom',
@@ -134,7 +137,7 @@ export default defineConfig({
     build: {
         outDir,
         manifest: 'manifest.json',
-        sourcemap: sentryToken === '' ? false : 'hidden',
+        sourcemap: glitchtipToken === '' ? false : 'hidden',
         assetsInlineLimit: (file) => (fileOnly.test(file) ? false : undefined),
         rolldownOptions: {
             input: [

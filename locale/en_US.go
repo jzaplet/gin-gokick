@@ -45,7 +45,7 @@ var enUS = Dictionary{
 
 	"home.group.security": "Security",
 
-	"home.group.telemetry": "Sentry and telemetry",
+	"home.group.telemetry": "GlitchTip and telemetry",
 
 	"home.group.measurement": "Analytics and consent",
 
@@ -181,9 +181,9 @@ var enUS = Dictionary{
 
 	"home.feature.headers.text": "HSTS, COOP, CORP and Permissions-Policy come from the server.",
 
-	"home.feature.sentry.title": "Sentry for Go and Vue",
+	"home.feature.errors.title": "GlitchTip for Go and Vue",
 
-	"home.feature.sentry.text": "Links browser errors to the backend, releases are commit SHAs.",
+	"home.feature.errors.text": "Links browser errors to the backend, releases are commit SHAs.",
 
 	"home.feature.metrics.title": "Prometheus metrics",
 

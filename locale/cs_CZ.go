@@ -45,7 +45,7 @@ var csCZ = Dictionary{
 
 	"home.group.security": "Bezpečnost",
 
-	"home.group.telemetry": "Sentry a\u00a0telemetrie",
+	"home.group.telemetry": "GlitchTip a\u00a0telemetrie",
 
 	"home.group.measurement": "Měření a\u00a0souhlas",
 
@@ -181,9 +181,9 @@ var csCZ = Dictionary{
 
 	"home.feature.headers.text": "HSTS, COOP, CORP i\u00a0Permissions-Policy pošle server sám.",
 
-	"home.feature.sentry.title": "Sentry pro Go i\u00a0Vue",
+	"home.feature.errors.title": "GlitchTip pro Go i\u00a0Vue",
 
-	"home.feature.sentry.text": "Spojí chybu z\u00a0prohlížeče s\u00a0backendem, release je SHA commitu.",
+	"home.feature.errors.text": "Spojí chybu z\u00a0prohlížeče s\u00a0backendem, release je SHA commitu.",
 
 	"home.feature.metrics.title": "Prometheus a\u00a0Grafana",
 

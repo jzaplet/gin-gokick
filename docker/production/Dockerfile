@@ -11,13 +11,13 @@ COPY vite.config.ts tsconfig.json ./
 COPY assets ./assets
 COPY views ./views
 
-ARG SENTRY_ORG
-ARG SENTRY_PROJECT
-ARG SENTRY_REPOSITORY
+ARG GLITCHTIP_URL
+ARG GLITCHTIP_ORG
+ARG GLITCHTIP_PROJECT
 RUN --mount=type=bind,source=.git,target=/build/.git \
-    --mount=type=secret,id=SENTRY_AUTH_TOKEN \
-    SENTRY_UPLOAD_TOKEN="$(cat /run/secrets/SENTRY_AUTH_TOKEN 2>/dev/null)" \
-    SENTRY_RELEASE="$(git rev-parse HEAD)" \
+    --mount=type=secret,id=GLITCHTIP_AUTH_TOKEN \
+    GLITCHTIP_AUTH_TOKEN="$(cat /run/secrets/GLITCHTIP_AUTH_TOKEN 2>/dev/null)" \
+    APP_RELEASE="$(git rev-parse HEAD)" \
     yarn build \
     && find public/build -name '*.map' -delete
 

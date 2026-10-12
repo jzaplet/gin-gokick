@@ -24,8 +24,8 @@ services:
       SMTP_SENDER_NAME: ${SMTP_SENDER_NAME:-}
       LOG_FORMAT: json
       LOG_LEVEL: info
-      SENTRY_DSN: ${SENTRY_DSN:-}
-      SENTRY_FRONTEND_DSN: ${SENTRY_FRONTEND_DSN:-}
+      GLITCHTIP_DSN: ${GLITCHTIP_DSN:-}
+      GLITCHTIP_FRONTEND_DSN: ${GLITCHTIP_FRONTEND_DSN:-}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel:4318}
       OTEL_SERVICE_NAME: "{{.Service.Name}}"
       OTEL_RESOURCE_ATTRIBUTES: "service.namespace=${STACK:?},service.instance.id={{.Task.Name}}"

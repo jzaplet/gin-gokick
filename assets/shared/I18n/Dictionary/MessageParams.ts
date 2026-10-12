@@ -87,6 +87,8 @@ export type MessageParams = {
     'home.feature.docker.title': null;
     'home.feature.env.text': null;
     'home.feature.env.title': null;
+    'home.feature.errors.text': null;
+    'home.feature.errors.title': null;
     'home.feature.forms.text': null;
     'home.feature.forms.title': null;
     'home.feature.gate.text': null;
@@ -121,8 +123,6 @@ export type MessageParams = {
     'home.feature.push_hook.title': null;
     'home.feature.routes.text': null;
     'home.feature.routes.title': null;
-    'home.feature.sentry.text': null;
-    'home.feature.sentry.title': null;
     'home.feature.sessions.text': null;
     'home.feature.sessions.title': null;
     'home.feature.shutdown.text': null;

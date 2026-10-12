@@ -9,7 +9,7 @@ Lightweight full-stack Golang boilerplate. Build apps in Go the light, clean and
 
 Clone the repo and let AI do the work. [AGENTS.md](AGENTS.md) holds the rules that people and AI follow alike.
 
-📖 **[Read the documentation](docs/README.md)** to see what you get on day one: sign-in with sessions, languages, emails, data grids, a strict CSP, Sentry, metrics and cookie consent, already wired together and guarded by the tools.
+📖 **[Read the documentation](docs/README.md)** to see what you get on day one: sign-in with sessions, languages, emails, data grids, a strict CSP, GlitchTip, metrics and cookie consent, already wired together and guarded by the tools.
 
 **Live demo**
 

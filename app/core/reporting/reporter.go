@@ -13,6 +13,7 @@ import (
 	"gokick/app/core/reporting/inapp"
 	"gokick/app/core/reporting/request"
 	"gokick/app/core/reporting/trace"
+	"gokick/app/core/telemetry"
 )
 
 const recoveredKey = "reporting.recovered"
@@ -68,6 +69,8 @@ func (r *Reporter) Recover(c *gin.Context, recovered any) {
 	c.Set(recoveredKey, true)
 
 	ctx := c.Request.Context()
+	telemetry.RecordError(ctx, fmt.Errorf("panic: %v", recovered))
+
 	if hub := sentry.GetHubFromContext(ctx); hub != nil {
 		identify(ctx, hub)
 		hub.RecoverWithContext(ctx, recovered)

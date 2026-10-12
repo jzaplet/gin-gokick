@@ -53,7 +53,7 @@ go run ./app            # in a second terminal: http://localhost:8020
 
 | Path | What it holds |
 | --- | --- |
-| `app/main.go` | the start: config, logger, languages and their dictionaries, mail sender, traces, Sentry, database with migrations, router, server with graceful shutdown |
+| `app/main.go` | the start: config, logger, languages and their dictionaries, mail sender, traces, error reporting, database with migrations, router, server with graceful shutdown |
 | `app/core/` | the reusable core: HTTP server, middleware, CSP, API envelope, grids, views, page URLs, Vite, static files, locales, ICU, mail, database, password hashing, session cookie and signed-in user, rate limit, logging, traces and metrics, Sentry, health checks, test helpers |
 | `app/internal/` | this app, one folder per domain (`auth`, `user`, `home`, `tracking`) plus `shared`: config, router, templates, CSP services, the handlers of no domain, the locale images and the test router |
 | `locale/` | the dictionaries, one Go map per locale |
@@ -75,7 +75,7 @@ The app reads the environment, and `.env` fills in what the environment lacks. `
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `APP_URL` | required | public address without a path (`https://gokick.dev`); mails build their links and images from it |
-| `APP_ENVIRONMENT`, `APP_RELEASE` | `production`, git revision of the build or `dev` | environment and release of the instance, shared by Sentry and the traces |
+| `APP_ENVIRONMENT`, `APP_RELEASE` | `production`, git revision of the build or `dev` | environment and release of the instance, shared by GlitchTip and the traces |
 | `DEFAULT_LOCALE` | required | default language as a POSIX locale; `/` is always in it |
 | `LOCALES` | `DEFAULT_LOCALE` | allowed locales, comma-separated (`cs_CZ,en_US`) |
 | `PORT` | `8020` | HTTP port |
@@ -93,14 +93,14 @@ The app reads the environment, and `.env` fills in what the environment lacks. `
 | `SMTP_HOST`, `SMTP_SENDER_EMAIL` | required when on | SMTP server and sender address |
 | `SMTP_PORT` | `587` | SMTP port; port 465 (TLS from the first byte) is refused |
 | `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_SENDER_NAME` | empty | SMTP account (both or neither) and sender name |
-| `SENTRY_DSN`, `SENTRY_FRONTEND_DSN` | empty | Sentry for the backend and the browser; empty turns each off |
+| `GLITCHTIP_DSN`, `GLITCHTIP_FRONTEND_DSN` | empty | GlitchTip for the backend and the browser; empty turns each off |
 | `UMAMI_WEBSITE_ID` | empty | Umami, which needs no consent |
 | `GA4_MEASUREMENT_ID`, `GOOGLE_ADS_ID`, `META_PIXEL_ID` | empty | tools that wait for cookie consent |
 | `GOOGLE_ADS_CONVERSIONS` | empty | conversion labels (`sign_up=AbC-D_efG`); an unknown conversion stops the start |
 | `APP_DOMAIN`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | — | not read by the app: the domain for both composes (locally `.env.example` builds `DB_HOST`, `SMTP_HOST` and `SMTP_SENDER_EMAIL` from it, and each compose the `APP_URL` of its container) and the PostgreSQL superuser |
-| `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_REPOSITORY`, `SENTRY_AUTH_TOKEN` | — | only for the Docker build: source maps and the release |
+| `GLITCHTIP_URL`, `GLITCHTIP_ORG`, `GLITCHTIP_PROJECT`, `GLITCHTIP_AUTH_TOKEN` | — | only for the Docker build: the source maps of the frontend |
 
-`app/internal/shared/config` puts `Config` together from one package per section of `.env.example`. The exceptions are `TRUSTED_PROXIES`, which the server package reads, and the Sentry build section, which the app never reads.
+`app/internal/shared/config` puts `Config` together from one package per section of `.env.example`. The exceptions are `TRUSTED_PROXIES`, which the server package reads, and the GlitchTip build section, which the app never reads.
 
 ## Routes and requests
 
@@ -141,7 +141,7 @@ Every error goes out in one envelope. Its keys are the JSON path of a field (`em
 | 413 | the body is larger than 1 MiB | `general`: `request.body_too_large` |
 | 422 | the `binding` tags or the handler refuse fields | one message per field |
 | 401, 404, 429 | a handler or middleware refuses the request | `general` with its key |
-| 500 | an unexpected error, reported to Sentry | `general`: `request.internal` |
+| 500 | an unexpected error, reported to GlitchTip | `general`: `request.internal` |
 
 - **Validation messages.** `binding` tags map to message keys: `required`, `email`, `uuid` (also `uuid4`, `uuid7`), `min`, `max` and `oneof`. Every other tag maps to `validation.invalid`.
   - `min` and `max` give the length of a text as a number for a plural (`validation.min_length`), the count of a slice, array or map (`validation.min_items`), and on anything else the limit as a string (`validation.min`).
@@ -184,7 +184,7 @@ Every error goes out in one envelope. Its keys are the JSON path of a field (`em
 - An address that doesn't parse is stored as `NULL` and never replaces a known one. An IPv4 address inside IPv6 is stored as IPv4.
 
 **Routes behind the session.**
-- They sit in the group with `authn.Middleware`. It finds the owner of the cookie's live session, answers 401 with `auth.sign_in_required` without one, and puts the user ID into the context for the log and Sentry. Neither gets the email.
+- They sit in the group with `authn.Middleware`. It finds the owner of the cookie's live session, answers 401 with `auth.sign_in_required` without one, and puts the user ID into the context for the log and GlitchTip. Neither gets the email.
 - A cookie with an unknown token is not deleted, because an older response could otherwise delete the cookie of a newer sign-in from another tab.
 - The two session routes work only on the sessions of the signed-in user and never end the current one; only the sign-out and a new sign-in, which replaces it, do. The `ip` filter (up to 45 characters) keeps the sessions whose last address contains the text, in any case and literally, so `%` and `_` stay text.
 
@@ -345,12 +345,12 @@ It also writes a sample of numbers to `tests/assets/i18n/numbers`, against which
 - `AuthLayout` loads the user from `/api/user/me` before it renders a screen. Until then it shows a spinner, and it shows a retry button when the load fails.
 
 **Session in the browser.**
-- `shared/Auth/Session` keeps only the user's ID, in localStorage, and gives Sentry the same ID.
+- `shared/Auth/Session` keeps only the user's ID, in localStorage, and gives the Sentry SDK the same ID.
 - At start `restoreSession` checks it once with `/api/auth/session`, and other tabs follow a sign-in or sign-out through the `storage` event.
 - `completeLogin` opens the target from `redirect` (only a path inside the SPA) in the account's language, without a reload.
 
 **Calling the API.**
-- `apiFetch` from `@/shared/Fetch` answers `{ success, status, data }`. A response that fails its guard becomes a general error and goes to Sentry, because it means the frontend and the API disagree.
+- `apiFetch` from `@/shared/Fetch` answers `{ success, status, data }`. A response that fails its guard becomes a general error and goes to GlitchTip, because it means the frontend and the API disagree.
 - `authFetch` has the same signature. On a 401 it forgets the session and opens the login with the page in `redirect`.
 - The sign-in routes stay on `apiFetch`, since a wrong password also answers 401.
 
@@ -365,7 +365,7 @@ It also writes a sample of numbers to `tests/assets/i18n/numbers`, against which
 - The page loads its own dictionary at start, and another one when the visitor switches. The switch loads it on hover or focus already.
 - A dictionary is cached in localStorage under its version.
 - `t('key', params)` takes exactly the params of its key, so vue-tsc refuses an unknown key or a wrong param, in templates too.
-- `formatMessage` fills a message like Go's `icu.Formatter`, through `Intl`. A missing text or a param that doesn't fit is reported to Sentry, and the page shows the key.
+- `formatMessage` fills a message like Go's `icu.Formatter`, through `Intl`. A missing text or a param that doesn't fit is reported to GlitchTip, and the page shows the key.
 
 **The language switcher.**
 - It shows the flag of the page and the languages of `LOCALES`, each in its own name.
@@ -436,29 +436,30 @@ It also writes a sample of numbers to `tests/assets/i18n/numbers`, against which
   - keys without a constant.
 
 **Traces.** `app/core/telemetry` sends them through OpenTelemetry over OTLP/HTTP to `OTEL_EXPORTER_OTLP_ENDPOINT`.
-- **One trace ID.** Every request belongs to a trace: the one of an incoming W3C `traceparent`, else of the frontend's `sentry-trace`, else a new one. The log, the Sentry event, the span and `X-Trace-Id` carry the same ID, with telemetry off too.
+- **One trace ID.** Every request belongs to a trace: the one of an incoming W3C `traceparent`, else of the frontend's `sentry-trace`, else a new one. The log, the GlitchTip event, the span and `X-Trace-Id` carry the same ID, with telemetry off too.
 - **Spans.** `otelgin` opens a server span named by the method and the route pattern. `otelpgx` adds a span per query, and `telemetry.Transport` one per outgoing request, which carries `traceparent` on.
 - **What is never sent:** `/ping`, `/readyz`, public files and unknown paths. They keep their trace ID.
 - **What the spans carry.** The server span has the route pattern, the query and the `User-Agent`. A wrapper drops the client's IP and port and the real path before the export; the IP is in the access log line with the same `trace_id`. An outgoing request keeps its full URL with the query, except a host that puts a secret into the URL (`api.telegram.org`), which keeps only its origin. A query span carries its SQL, never its parameters.
-- **Sampling.** `OTEL_TRACES_SAMPLER_ARG` decides once per trace by its ID. It ignores the sampled flag of a remote parent, because Sentry in the browser sends every `traceparent` as not sampled.
+- **Errors on the span.** `reporting.Error`, `reporting.Warning` and a recovered panic add an `exception` event to the server span, with the message and the stack of the call. An error and a panic mark the span as failed, and a warning leaves its status as it is.
+- **Sampling.** `OTEL_TRACES_SAMPLER_ARG` decides once per trace by its ID. It ignores the sampled flag of a remote parent, because the Sentry SDK in the browser sends every `traceparent` as not sampled.
 - **Off without an endpoint.** Without `OTEL_EXPORTER_OTLP_ENDPOINT` the app sends nothing, whatever other `OTEL_*` variable is set.
 - **Errors of the export** go to the log as warnings, and telemetry never stops the start. At shutdown the app sends what is left of the traces and the metrics at once, for at most 2 s.
 
-**Sentry.**
-- `SENTRY_DSN` turns it on. Every panic and every 5xx with a reported error goes there, and several errors of one request form one event.
+**GlitchTip.**
+- The Sentry SDK sends errors to GlitchTip, which takes the protocol of Sentry. `GLITCHTIP_DSN` turns it on. Every panic and every 5xx with a reported error goes there, and several errors of one request form one event.
 - The event carries:
   - the route pattern, the `User-Agent` and the query;
   - masked `Authorization` and `Cookie`;
   - the user ID.
 
   It carries no body, no cookies and no IP.
-- `reporting.Error(c, err)` keeps the stack of its call, so Sentry shows the handler line. `reporting.Warning(c, err)` reports an error the request survives.
-- **In the browser** `SENTRY_FRONTEND_DSN` starts `@sentry/vue` in the SPA.
+- `reporting.Error(c, err)` keeps the stack of its call, so GlitchTip shows the handler line. `reporting.Warning(c, err)` reports an error the request survives.
+- **In the browser** `GLITCHTIP_FRONTEND_DSN` starts `@sentry/vue` in the SPA.
   - It reports uncaught and Vue errors, and every CSP violation outside browser extensions as a warning.
   - It drops the fragment from every URL.
   - It sends `sentry-trace`, `baggage` and `traceparent` with each own-origin `fetch`, so a backend error and its spans join the frontend's trace.
   - It measures no performance and never infers the visitor's IP.
-- **Source maps** are uploaded by the Docker build, only with the build secret `SENTRY_AUTH_TOKEN`, and then deleted from the image.
+- **Source maps** are uploaded by the Docker build, only with the build secret `GLITCHTIP_AUTH_TOKEN`, and then deleted from the image. The build writes a debug ID into each bundle and its map, and GlitchTip pairs them by it, so a map fits its bundle whatever the release. A failed upload fails the build.
 
 **Metrics.** `app/core/telemetry` sends them every 30 s with the traces to `OTEL_EXPORTER_OTLP_ENDPOINT`, and nothing reads them from the app.
 
@@ -495,7 +496,7 @@ Each tool is switched on by its ID in the environment and runs without Google Ta
   - The sign-up sends the email hashed with SHA-256 to Ads and Meta, and never in plain text.
   - In Google Ads, the conversion needs "Enhanced conversions" on.
   - The privacy policy must mention it.
-- **Queries reach every tool.** The query of an address goes to every tool, to Sentry, to the access log and to the traces.
+- **Queries reach every tool.** The query of an address goes to every tool, to GlitchTip, to the access log and to the traces.
 - **Hotjar** is not supported, because it can't run under Trusted Types.
 
 ## Production
@@ -515,7 +516,7 @@ Each tool is switched on by its ID in the environment and runs without Google Ta
 
 **Logs, traces and metrics.** Alloy sends the logs of every container to Loki with the stack and the service as labels, so the app needs no setup for them. The compose sends the traces and metrics to `http://otel:4318`, the OTLP receiver on `edge`, with the stack as `service.namespace`; the repository variable `OTEL_EXPORTER_OTLP_ENDPOINT` points them elsewhere.
 
-**The first deploy.** [first-deploy.md](first-deploy.md) walks through it: Cloudflare and Caddy, Sentry, the workflows with their variables and secrets, the deploy, backups, Grafana and the checks.
+**The first deploy.** [first-deploy.md](first-deploy.md) walks through it: Cloudflare and Caddy, GlitchTip, the workflows with their variables and secrets, the deploy, backups, Grafana and the checks.
 
 ## Tests
 

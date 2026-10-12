@@ -16,6 +16,7 @@ import (
 	coltracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	metricspb "go.opentelemetry.io/proto/otlp/metrics/v1"
+	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -26,9 +27,19 @@ type Span struct {
 
 	ParentSpanID string
 
+	Status string
+
 	Attributes map[string]string
 
+	Events []Event
+
 	Resource map[string]string
+}
+
+type Event struct {
+	Name string
+
+	Attributes map[string]string
 }
 
 type Point struct {
@@ -193,7 +204,11 @@ func (c *Collector) receiveSpans(body []byte) error {
 
 					ParentSpanID: hex.EncodeToString(span.GetParentSpanId()),
 
+					Status: span.GetStatus().GetCode().String(),
+
 					Attributes: values(span.GetAttributes()),
+
+					Events: events(span.GetEvents()),
 
 					Resource: resource,
 				})
@@ -223,6 +238,15 @@ func (c *Collector) receiveMetrics(body []byte) error {
 	}
 
 	return nil
+}
+
+func events(spanEvents []*tracepb.Span_Event) []Event {
+	found := make([]Event, 0, len(spanEvents))
+	for _, event := range spanEvents {
+		found = append(found, Event{Name: event.GetName(), Attributes: values(event.GetAttributes())})
+	}
+
+	return found
 }
 
 func points(metric *metricspb.Metric, resource map[string]string) []Point {

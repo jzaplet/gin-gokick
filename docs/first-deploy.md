@@ -1,6 +1,6 @@
 # First deploy
 
-This guide deploys a new project from this skeleton to a Docker Swarm: Cloudflare, Sentry, GitHub Actions with shared workflows, PostgreSQL in the stack, Prometheus, Loki and Grafana. The Swarm with its reverse proxy Caddy, Prometheus, Loki with Alloy and Grafana already run, and an infra repository describes them; the guide only adds the project to them. A person can follow it by hand, or Claude reads it and does most steps itself through `gh`, the APIs and the infra repository. Skills with a map of the infrastructure or a password manager speed the work up, but the guide doesn't depend on them.
+This guide deploys a new project from this skeleton to a Docker Swarm: Cloudflare, GlitchTip, GitHub Actions with shared workflows, PostgreSQL in the stack, Prometheus, Loki and Grafana. The Swarm with its reverse proxy Caddy, Prometheus, Loki with Alloy and Grafana already run, and an infra repository describes them; the guide only adds the project to them. A person can follow it by hand, or Claude reads it and does most steps itself through `gh`, the APIs and the infra repository. Skills with a map of the infrastructure or a password manager speed the work up, but the guide doesn't depend on them.
 
 ## For Claude
 
@@ -11,21 +11,21 @@ This guide deploys a new project from this skeleton to a Docker Swarm: Cloudflar
    - `gh auth status` shows an account that may set the secrets and variables of `<repo>` and run its workflows;
    - a local clone of `<repo>`, from whose root the guide runs, and a clone of `<infra-repo>`;
    - SSH to `<manager>`;
-   - the Sentry API answers `GET <sentry-api>/api/0/`.
+   - the GlitchTip API answers `GET <glitchtip>/api/0/` with the token of manual item 1. When an access proxy guards GlitchTip, `<infra-repo>` says how to reach its API.
 4. List the manual steps of "What the person does", with their links. Items 1 to 4 must be done before step 1, item 5 comes in step 1, item 6 at the end.
 5. Go through steps 1 to 7. The last step is the verification.
-6. Describe every write to production (the secrets and variables of `<repo>`, a run of Deploy, `<infra-repo>`, SSH to the servers, Sentry) beforehand and have it confirmed. A change of `<infra-repo>` goes through its own pull request and deploy, as its README says.
+6. Describe every write to production (the secrets and variables of `<repo>`, a run of Deploy, `<infra-repo>`, SSH to the servers, GlitchTip) beforehand and have it confirmed. A change of `<infra-repo>` goes through its own pull request and deploy, as its README says.
 7. Never print tokens and passwords, and never ask for them in the chat.
-   - Read tokens from exported environment variables (`SENTRY_TOKEN`, `GRAFANA_TOKEN`) or from the password manager, and pass them into a header through `-H @<(printf …)`.
+   - Read tokens from exported environment variables (`GLITCHTIP_TOKEN`, `GRAFANA_TOKEN`) or from the password manager, and pass them into a header through `-H @<(printf …)`.
    - Generate a password and write it to `<repo>` in the same command (`openssl rand -hex 24 | gh secret set …`), so it never shows in the output or in the arguments of a process. GitHub never shows a secret again.
 8. Every Bash call is a new shell, so define the helper functions again in each command.
-9. The answers of the Sentry API and `docker service inspect` contain secrets (keys, the environment of a service). Print only chosen fields of them through `jq` or `--format`.
+9. The answers of the GlitchTip API and `docker service inspect` contain secrets (keys, the environment of a service). Print only chosen fields of them through `jq` or `--format`.
 
 ## Inputs
 
 | Placeholder | What it is | Example |
 | --- | --- | --- |
-| `<projectname>` | name of the project, which names the database, its role, and the Sentry projects | `shop` |
+| `<projectname>` | name of the project, which names the database, its role, and the GlitchTip projects | `shop` |
 | `<domain>` | domain of the site | `shop.cz` |
 | `<repo>` | GitHub repository `owner/name` | `firma/shop` |
 | `<stack>` | Swarm stack: the name of `<repo>` in lowercase, unless the Deploy caller sets `stack` | `shop` |
@@ -38,22 +38,20 @@ This guide deploys a new project from this skeleton to a Docker Swarm: Cloudflar
 | `<manager>` | SSH alias of a manager of the Swarm | `ops1` |
 | `<grafana>` | address of Grafana | `https://grafana.firma.cz` |
 | `<prometheus-datasource>`, `<loki-datasource>` | uids of the Prometheus and Loki datasources in Grafana | `prometheus`, `loki` |
-| `<sentry-org>`, `<sentry-team>` | slug of the organization and of the team in Sentry | `firma`, `firma` |
-| `<sentry-api>` | the Sentry API, `https://de.sentry.io` for organizations in the EU | `https://sentry.io` |
-
-The Sentry links below hold for sentry.io. A self-hosted Sentry has the same pages at its own address.
+| `<glitchtip>` | address of GlitchTip | `https://glitchtip.firma.cz` |
+| `<glitchtip-org>`, `<glitchtip-team>` | slug of the organization and of a team in GlitchTip | `firma`, `firma` |
 
 ## How the deploy works
 
 `<repo>` adds two short workflows that call the shared ones of `<workflows>`. These run on self-hosted runners, which hold the login to `<registry>` and the Docker socket of a manager of the Swarm. The skeleton itself carries neither caller, because its public repository would queue jobs for runners it has no access to.
 
-- **Build** runs on every push to `<branch>`. It builds `docker/production/Dockerfile` and pushes `<registry>/<owner>/<repo>:<commit>`, in lowercase and with the whole SHA.
+- **Build** runs on every push to `<branch>`. It builds `docker/production/Dockerfile` and pushes `<registry>/<owner>/<repo>:<commit>`, in lowercase and with the whole SHA. A repository variable named by an `ARG` of the Dockerfile becomes a build argument, and the repository secret `GLITCHTIP_AUTH_TOKEN`, which the Dockerfile mounts, becomes a build secret.
 - **Deploy** starts by the Run workflow button in the Actions tab. It deploys `docker/production/compose.yaml` of the chosen commit with the image of the same commit, as the stack `<stack>`. An empty version takes the head of the branch, and an older commit rolls back.
 - **What the compose gets:** `IMAGE`, `VERSION` (the commit), `STACK`, `ROLE` (the services run on the nodes with `node.labels.role == ${ROLE}`, by default `app`), and every repository variable and secret by its name for `${…}`. A value written into `environment` shows in `docker service inspect`, so only configuration goes there.
 - **Secrets.** A top-level secret with `x-environment: <NAME>` becomes a Docker secret with the value of the repository secret `<NAME>`. Its name carries a hash of the value, so a new value deploys as a new secret.
   - `x-optional: true` beside it leaves the secret out when the repository lacks it, and the variable stays unset.
   - The entrypoint of `app` exports every file of `/run/secrets` as a variable of its name and then starts the app, so the app needs no `_FILE` support. `db` reads its passwords through `POSTGRES_PASSWORD_FILE` and `DB_PASSWORD_FILE`, which the PostgreSQL image and `app-role.sh` support.
-  - The deploy refuses a stack in whose rendered compose the value of any repository secret appears. The compose therefore interpolates only repository variables, and `SENTRY_DSN` or `SMTP_USERNAME` are never secrets.
+  - The deploy refuses a stack in whose rendered compose the value of any repository secret appears. The compose therefore interpolates only repository variables, and `GLITCHTIP_DSN` or `SMTP_USERNAME` are never secrets.
 - **A broken version.** The app updates `start-first` with `failure_action: rollback`. When the new version doesn't start or doesn't pass the healthcheck of the image on `/readyz`, Swarm brings the previous version back and the run fails. The database updates `stop-first`, since two PostgreSQL can't share one volume, and a new app waits up to a minute for it.
 - **The database role.** The first start of `db` on an empty volume runs `docker/postgres/initdb/app-role.sh`, which creates the role `DB_USERNAME` with `DB_PASSWORD` and the database `DB_NAME`.
 - **Logs** need no step. Alloy of the infra sends the stdout of every container to Loki with the labels `service_namespace` (the stack) and `service_name` (the name of the Swarm service, `<stack>_<service>`), so the app logs under `{service_namespace="<stack>", service_name="<stack>_app"}`.
@@ -63,15 +61,14 @@ The Sentry links below hold for sentry.io. A self-hosted Sentry has the same pag
 
 These steps can't go through an API, or the token would pass through the chat. Give Claude the tokens as environment variables exported before it starts, or through a password manager with a CLI.
 
-1. **Sentry, personal token** for the configuration, on `https://<sentry-org>.sentry.io/settings/account/api/auth-tokens/`, into `SENTRY_TOKEN`. Permissions:
-   - Project: Admin, to create projects;
-   - Release: Admin;
-   - Alerts: Write;
-   - Organization: Read and Integrations, for the code mappings;
-   - Issue & Event: Write, to resolve the test error.
+1. **GlitchTip, token for the configuration**, under Profile → Auth Tokens on `<glitchtip>`, into `GLITCHTIP_TOKEN`. Scopes:
+   - `project:read`, `project:write` and `project:admin`, for the projects, their keys and alerts;
+   - `team:read`, and `team:write` when `<glitchtip-org>` has no team yet;
+   - `org:read`;
+   - `event:read` and `event:write`, to read and resolve the test error.
 
-   What the token can really do shows in `GET <sentry-api>/api/0/`, in the field `auth.scopes`.
-2. **Sentry, GitHub:** `https://<sentry-org>.sentry.io/settings/integrations/github/` → Add Installation for the account that owns `<repo>`.
+   What the token can do shows in `GET <glitchtip>/api/0/`, in the field `auth.scopes`.
+2. **GlitchTip, token for the build** with the single scope `project:releases`, which uploads the source maps. The person pastes it into `gh secret set GLITCHTIP_AUTH_TOKEN --repo <repo>`, which asks for it without showing it. The token belongs to its person, so a new one is needed when the person leaves the organization.
 3. **Grafana:** a service account token allowed to import dashboards and query the datasources (Administration → Service accounts) into `GRAFANA_TOKEN`.
 4. **GitHub:** an owner of `<workflows>` lets `<repo>` call its workflows (Settings → Actions → General → Access) and use the self-hosted runners (the repository access of their runner group).
 5. **Cloudflare:** the redirect rule of step 1 is done in the panel.
@@ -82,7 +79,7 @@ These steps can't go through an API, or the token would pass through the chat. G
 The steps below rely on this function (bash or zsh):
 
 ```bash
-sentry_api() { curl -sS --fail-with-body -H @<(printf 'Authorization: Bearer %s' "$SENTRY_TOKEN") -H 'Content-Type: application/json' "$@"; }
+glitchtip_api() { curl -sS --fail-with-body -H @<(printf 'Authorization: Bearer %s' "$GLITCHTIP_TOKEN") -H 'Content-Type: application/json' "$@"; }
 ```
 
 ## 1. Cloudflare and Caddy
@@ -106,70 +103,28 @@ In the Cloudflare panel for the zone `<domain>`, Rules → Redirect Rules → Si
 - the dynamic target `concat("https://<domain>", http.request.uri.path)`;
 - 301 and Preserve query string.
 
-## 2. Sentry
+## 2. GlitchTip
 
-Sentry must be ready before step 3, which writes the DSNs of both projects into the repository variables.
+GlitchTip must be ready before step 3, which writes the DSNs of both projects into the repository variables. The Sentry SDKs of the backend and the frontend send there, because GlitchTip takes the protocol of Sentry.
 
-The shared Build passes the Dockerfile no build arguments and no build secret, so the image uploads no source maps and creates no release with commits and a deploy. A build that passes `SENTRY_ORG`, `SENTRY_PROJECT` and `SENTRY_REPOSITORY` with the build secret `SENTRY_AUTH_TOKEN` (an organization token) uploads them. Until then the frames of the frontend stay minified, and the Vue code mapping of item 3 waits for them.
-
-1. Two projects, the backend and the frontend:
+1. Two projects, the backend and the frontend. A project belongs to a team; when `<glitchtip-org>` has none, the first command creates `<glitchtip-team>` with the owner of the token in it:
 
    ```bash
-   sentry_api -X POST -d '{"name":"<projectname>-go","platform":"go"}' "<sentry-api>/api/0/teams/<sentry-org>/<sentry-team>/projects/" | jq '{slug, id}'
-   sentry_api -X POST -d '{"name":"<projectname>-vue","platform":"javascript-vue"}' "<sentry-api>/api/0/teams/<sentry-org>/<sentry-team>/projects/" | jq '{slug, id}'
+   glitchtip_api -X POST -d '{"slug":"<glitchtip-team>"}' "<glitchtip>/api/0/organizations/<glitchtip-org>/teams/" | jq '{slug}'
+   glitchtip_api -X POST -d '{"name":"<projectname>-go","platform":"go"}' "<glitchtip>/api/0/teams/<glitchtip-org>/<glitchtip-team>/projects/" | jq '{slug, id}'
+   glitchtip_api -X POST -d '{"name":"<projectname>-vue","platform":"javascript-vue"}' "<glitchtip>/api/0/teams/<glitchtip-org>/<glitchtip-team>/projects/" | jq '{slug, id}'
    ```
 
-2. The alert. The default rule of a new project reports only high-priority issues. Replace it with this one:
-   - a new issue, a regression, a reappeared issue, a new or escalating high-priority issue;
-   - level warning and above, every environment;
-   - an email to the owner of the token;
-   - at most once per 30 minutes.
-
-   In the API, alerts are workflows; the old `projects/…/rules/` answers 404. Find the rule of a project through its detector with the project's `projectId`, never by the type of its action. The organization-wide rule of Seer has the same actions and would be overwritten.
+2. The alert. A new project has none. This one emails the members of the project's teams once for each new issue, after its first event:
 
    ```bash
-   me=$(sentry_api "<sentry-api>/api/0/" | jq -r .user.id)
    for p in <projectname>-go <projectname>-vue; do
-     pid=$(sentry_api "<sentry-api>/api/0/projects/<sentry-org>/$p/" | jq -r .id)
-     det=$(sentry_api "<sentry-api>/api/0/organizations/<sentry-org>/detectors/" | jq -r --arg p "$pid" '.[] | select(.projectId == $p and .type == "issue_stream") | .id')
-     wf=$(sentry_api "<sentry-api>/api/0/organizations/<sentry-org>/workflows/" | jq -r --arg d "$det" '.[] | select(.detectorIds | index($d)) | .id')
-     [ -n "$det" ] && [ -n "$wf" ] || { echo "$p: rule not found"; exit 1; }
-     jq -n --arg me "$me" --arg det "$det" '{name: "Send all issues", enabled: true, environment: null, config: {frequency: 30}, detectorIds: [$det],
-       triggers: {logicType: "any-short", conditions: [
-         {type: "first_seen_event", comparison: true, conditionResult: true},
-         {type: "regression_event", comparison: true, conditionResult: true},
-         {type: "reappeared_event", comparison: true, conditionResult: true},
-         {type: "new_high_priority_issue", comparison: true, conditionResult: true},
-         {type: "existing_high_priority_issue", comparison: true, conditionResult: true}]},
-       actionFilters: [{logicType: "any-short",
-         conditions: [{type: "level", comparison: {level: 30, match: "gte"}, conditionResult: true}],
-         actions: [{type: "email", data: {}, config: {targetType: "user", targetIdentifier: $me}}]}]}' \
-       | sentry_api -X PUT --data-binary @- "<sentry-api>/api/0/organizations/<sentry-org>/workflows/$wf/" | jq -c '{id, name, frequency: .config.frequency}'
+     glitchtip_api -X POST -d '{"name":"Every new issue","timespanMinutes":1,"quantity":1,"uptime":false,"alertRecipients":[{"recipientType":"email"}]}' \
+       "<glitchtip>/api/0/projects/<glitchtip-org>/$p/alerts/" | jq -c '{id, name}'
    done
    ```
 
-3. Code mappings, so frames lead to the release's commit on GitHub. The repository must show in Sentry once GitHub is installed; otherwise stop and go back to manual item 2.
-   - **Go:** the binary is built with `-trimpath`, and its frames have the path `<Go module>/app/…`. The stack root is therefore the module from `go.mod` with a slash, and the source root is empty.
-   - **Vue:** after the source maps, the frames have the path `../assets/…`, so the stack root is `../`. Check it after the first error of a build with source maps.
-
-   ```bash
-   repos=$(sentry_api "<sentry-api>/api/0/organizations/<sentry-org>/repos/?query=$(basename <repo>)")
-   repo=$(jq -r '.[] | select(.name == "<repo>") | .id' <<<"$repos")
-   integration=$(jq -r '.[] | select(.name == "<repo>") | .integrationId' <<<"$repos")
-   [ -n "$repo" ] || { echo "<repo> is not in Sentry"; exit 1; }
-   module=$(awk '/^module /{print $2}' go.mod)
-   for pair in "<projectname>-go:$module/" "<projectname>-vue:../"; do
-     pid=$(sentry_api "<sentry-api>/api/0/projects/<sentry-org>/${pair%%:*}/" | jq -r .id)
-     jq -n --arg p "$pid" --arg r "$repo" --arg i "$integration" --arg s "${pair#*:}" '{projectId: $p, repositoryId: $r, integrationId: $i, stackRoot: $s, sourceRoot: "", defaultBranch: "<branch>"}' \
-       | sentry_api -X POST --data-binary @- "<sentry-api>/api/0/organizations/<sentry-org>/code-mappings/" | jq -c '{id, stackRoot, repo: .repoName}'
-   done
-   ```
-
-4. Source code from GitHub on the Go frames. The binary carries no sources, so Sentry loads them from the repository:
-
-   ```bash
-   sentry_api -X PUT -d '{"scmSourceContextEnabled": true}' "<sentry-api>/api/0/projects/<sentry-org>/<projectname>-go/" | jq '{slug, scmSourceContextEnabled}'
-   ```
+Compared with Sentry, GlitchTip loads no source code from GitHub and links no commits to a release. A frame of Go shows its file and line, and a frame of Vue its source line from the source maps.
 
 ## 3. The repository: workflows, variables and secrets
 
@@ -192,6 +147,7 @@ The shared Build passes the Dockerfile no build arguments and no build secret, s
    jobs:
      build:
        uses: <workflows>/.github/workflows/build.yml@v1
+       secrets: inherit
    ```
 
    `deploy.yml`:
@@ -221,19 +177,22 @@ The shared Build passes the Dockerfile no build arguments and no build secret, s
 2. **The variables.** The compose names every variable it takes. It requires the ones written `${NAME:?}`, and an empty one means the default of the app. `.env.example` says what each means. The compose fixes the rest: release mode, JSON logs at `info`, the environment `production`, the release `VERSION`, the database `db`, `TRUSTED_PROXIES` and `APP_URL` from `APP_DOMAIN`.
 
    ```bash
-   dsn() { sentry_api "<sentry-api>/api/0/projects/<sentry-org>/$1/keys/" | jq -r '[.[] | select(.isActive)][0].dsn.public'; }
+   dsn() { glitchtip_api "<glitchtip>/api/0/projects/<glitchtip-org>/$1/keys/" | jq -r '.[0].dsn.public'; }
    gh variable set APP_DOMAIN --repo <repo> --body '<domain>'
    gh variable set DEFAULT_LOCALE --repo <repo> --body '<locale>'
    gh variable set LOCALES --repo <repo> --body '<locales>'
    gh variable set DB_NAME --repo <repo> --body '<projectname>'
    gh variable set DB_USERNAME --repo <repo> --body '<projectname>'
-   gh variable set SENTRY_DSN --repo <repo> --body "$(dsn <projectname>-go)"
-   gh variable set SENTRY_FRONTEND_DSN --repo <repo> --body "$(dsn <projectname>-vue)"
+   gh variable set GLITCHTIP_DSN --repo <repo> --body "$(dsn <projectname>-go)"
+   gh variable set GLITCHTIP_FRONTEND_DSN --repo <repo> --body "$(dsn <projectname>-vue)"
+   gh variable set GLITCHTIP_URL --repo <repo> --body '<glitchtip>'
+   gh variable set GLITCHTIP_ORG --repo <repo> --body '<glitchtip-org>'
+   gh variable set GLITCHTIP_PROJECT --repo <repo> --body '<projectname>-vue'
    gh variable list --repo <repo> --json name --jq '.[].name'
    ```
 
    Mails stay off until `SMTP_ENABLED=true` with `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME` and `SMTP_SENDER_EMAIL`. The measurement tools turn on with their IDs.
-3. **The secrets.** The compose mounts `DB_PASSWORD` into the app and the database and `POSTGRES_PASSWORD` into the database, and both are required. `SMTP_PASSWORD` and `OTEL_EXPORTER_OTLP_HEADERS` are optional. None of them is ever a variable.
+3. **The secrets.** The compose mounts `DB_PASSWORD` into the app and the database and `POSTGRES_PASSWORD` into the database, and both are required. `SMTP_PASSWORD` and `OTEL_EXPORTER_OTLP_HEADERS` are optional. None of them is ever a variable. `GLITCHTIP_AUTH_TOKEN` from manual item 2 goes only to Build; with it, every build uploads the source maps, and a failed upload fails the build.
 
    ```bash
    openssl rand -hex 24 | tr -d '\n' | gh secret set DB_PASSWORD --repo <repo>
@@ -306,7 +265,7 @@ jq '{dashboard: (. + {id: null}), overwrite: true, folderUid: ""}' <<<"$dashboar
 
 ## 7. Verification
 
-`<SHA>` is the deployed commit, in the `data-release` of the tag `<meta name="sentry">` on `https://<domain>/<language>/app`. Claude checks these itself:
+Claude checks these itself:
 
 - `https://<domain>/` answers 200 with `cf-cache-status: DYNAMIC`, `/readyz` 200, and `https://www.<domain>/` 301 to the apex.
 - `<meta name="sentry">` on `https://<domain>/<language>/app` has `data-environment="production"` and a `data-release` equal to the commit of the last run of Deploy.
@@ -333,23 +292,15 @@ jq '{dashboard: (. + {id: null}), overwrite: true, folderUid: ""}' <<<"$dashboar
   ```
 
 - securityheaders.com and MDN Observatory show A+.
-- Only with a build that uploads source maps:
-  - The release in Sentry has its commits and a deploy to `production`:
+- The live bundle carries a debug ID, and its map never leaks out:
 
-    ```bash
-    sentry_api "<sentry-api>/api/0/organizations/<sentry-org>/releases/<SHA>/" | jq '{version, commitCount, deployCount, projects: [.projects[].slug]}'
-    ```
+  ```bash
+  js=$(curl -sS https://<domain>/<language>/app | grep -oE '/build/assets/app-[A-Za-z0-9_-]+\.js' | head -1)
+  curl -sS "https://<domain>$js" | grep -c 'sentry-dbid-'
+  curl -s -o /dev/null -w '%{http_code}\n' "https://<domain>$js.map"
+  ```
 
-  - Sentry finds the `sentry-dbid-…` of the live `/build/assets/app-….js`, and the map never leaks out:
-
-    ```bash
-    js=$(curl -sS https://<domain>/<language>/app | grep -oE '/build/assets/app-[A-Za-z0-9_-]+\.js' | head -1)
-    id=$(curl -sS "https://<domain>$js" | grep -oE 'sentry-dbid-[0-9a-f-]{36}' | head -1 | cut -c13-)
-    sentry_api "<sentry-api>/api/0/projects/<sentry-org>/<projectname>-vue/artifact-lookup/?debug_id=$id" | jq 'length'
-    curl -s -o /dev/null -w '%{http_code}\n' "https://<domain>$js.map"
-    ```
-
-    The first command must print at least 1, the second 404.
+  The first command must print at least 1, the second 404.
 
 With the person's permission, because an issue is created and an email arrives:
 
@@ -357,17 +308,37 @@ With the person's permission, because an issue is created and an email arrives:
 
   ```js
   const probe = new Event('securitypolicyviolation');
-  Object.defineProperty(probe, 'sourceFile', { get() { throw new Error('Sentry probe'); } });
+  Object.defineProperty(probe, 'sourceFile', { get() { throw new Error('GlitchTip probe'); } });
   setTimeout(() => document.dispatchEvent(probe));
   ```
 
-  Then check the event and close the issue:
-  - The event in `<projectname>-vue` must exist. With source maps, it has the frame `../assets/shared/Sentry/startSentry.ts` with its source line, and `GET <sentry-api>/api/0/projects/<sentry-org>/<projectname>-vue/stacktrace-link/?file=../assets/shared/Sentry/startSentry.ts&platform=javascript&commitId=<SHA>` answers a `sourceUrl` into GitHub.
-  - Then resolve the issue: `PUT <sentry-api>/api/0/organizations/<sentry-org>/issues/<issue id>/` with `{"status":"resolved"}`. The `<issue id>` is the `groupID` of the event.
-- **Frontend and backend errors joined.** In production this would need a database outage, so only on request. Locally it can be tried like this:
-  - a binary built as in the image (`go build -trimpath`);
-  - the real DSNs and `APP_ENVIRONMENT=development`;
-  - a temporary Postgres that you stop after the start.
+  Then check the event and close the issue. The second command must print the frame `../assets/shared/Sentry/startSentry.ts` with `"source":true`, and the email of the alert must arrive:
 
-  `fetch('/readyz')` from the frontend then answers 503, and the backend error has the same `trace_id` as the frontend error from the same page.
-- **Go code in Sentry** loads from GitHub only in the UI; the API can't check it. Open a backend issue and check that its frames show lines of code.
+  ```bash
+  issue=$(glitchtip_api "<glitchtip>/api/0/projects/<glitchtip-org>/<projectname>-vue/issues/?query=GlitchTip%20probe" | jq -r '.[0].id')
+  glitchtip_api "<glitchtip>/api/0/organizations/<glitchtip-org>/issues/$issue/events/latest/" \
+    | jq -c '.entries[] | select(.type == "exception") | .data.values[-1].stacktrace.frames[] | select(.filename | endswith("startSentry.ts")) | {filename, lineNo, source: ((.context // []) | length > 0)}'
+  glitchtip_api -X PUT -d '{"status":"resolved"}' "<glitchtip>/api/0/issues/$issue/" | jq '{status}'
+  ```
+
+- **A backend error joined with its log and trace.** It needs a short outage of the database, so only on request. Take the login from the role of the app for a second and end its connections, with the login given back by the `trap` whatever happens, and call two routes straight in the app, past the edge. `<db-server>` is the server `ssh <manager> "docker service ps <stack>_db --filter desired-state=running --format '{{.Node}}'"` names, and the app must run there too.
+
+  ```bash
+  trace=$(openssl rand -hex 16)
+  ssh <db-server> bash -s -- "$trace" <<'SH'
+  db=$(docker ps -qf name=<stack>_db | head -1); app=$(docker ps -qf name=<stack>_app | head -1)
+  trap 'docker exec "$db" psql -U postgres -qAt -c "ALTER ROLE \"<projectname>\" LOGIN"' EXIT
+  docker exec "$db" psql -U postgres -qAt -v ON_ERROR_STOP=1 -c 'ALTER ROLE "<projectname>" NOLOGIN' \
+    -c "SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '<projectname>'"
+  docker exec "$app" wget -q -S -O /dev/null --header "traceparent: 00-$1-1a2b3c4d5e6f7a8b-01" --header 'Cookie: __Host-session=probe' http://127.0.0.1:8020/api/user/me 2>&1 | grep 'HTTP/'
+  docker exec "$app" wget -q -S -O /dev/null --header "traceparent: 00-$1-2b3c4d5e6f7a8b9c-01" http://127.0.0.1:8020/readyz 2>&1 | grep 'HTTP/'
+  SH
+  echo "$trace"
+  ```
+
+  The routes answer 500 and 503, and `https://<domain>/readyz` answers 200 again right after. The trace ID must then be:
+  - in two events of `<projectname>-go`, whose culprits are `app/core/authn/authn.go` and `app/core/health/health.go`;
+  - in two `ERROR` lines of the log in Loki;
+  - in Tempo, where the span `GET /api/user/me` is failed and has an `exception` event with the stack (`/readyz` sends no spans).
+
+  Then resolve both issues as above.

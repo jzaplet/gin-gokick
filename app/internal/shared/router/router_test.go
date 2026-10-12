@@ -85,9 +85,9 @@ func TestNewRouterServesThePublicDirectory(t *testing.T) {
 }
 
 func TestNewRouterGivesTheBrowserItsSentryOptions(t *testing.T) {
-	browser := reporting.NewBrowser("https://public@o1.ingest.sentry.io/3", "staging", "v1")
+	browser := reporting.NewBrowser("https://public@glitchtip.example.com/3", "staging", "v1")
 
-	want := `<meta name="sentry" data-dsn="https://public@o1.ingest.sentry.io/3" data-environment="staging" data-release="v1">`
+	want := `<meta name="sentry" data-dsn="https://public@glitchtip.example.com/3" data-environment="staging" data-release="v1">`
 	if body := homepage(t, routertest.Config(), browser); strings.Contains(body, want) == false {
 		t.Errorf("body lacks %s: %s", want, body)
 	}
