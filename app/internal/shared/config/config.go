@@ -10,11 +10,11 @@ import (
 	"gokick/app/core/database"
 	"gokick/app/core/telemetry"
 	"gokick/app/internal/shared/config/app"
+	"gokick/app/internal/shared/config/glitchtip"
 	"gokick/app/internal/shared/config/locale"
 	"gokick/app/internal/shared/config/logs"
 	"gokick/app/internal/shared/config/otel"
 	"gokick/app/internal/shared/config/postgres"
-	"gokick/app/internal/shared/config/sentry"
 	"gokick/app/internal/shared/config/server"
 	"gokick/app/internal/shared/config/smtp"
 	"gokick/app/internal/shared/config/tracking"
@@ -27,7 +27,7 @@ type Config struct {
 
 	Log logs.Config
 
-	Sentry sentry.Config
+	GlitchTip glitchtip.Config
 
 	Telemetry telemetry.Config
 
@@ -50,7 +50,7 @@ func Load() (*Config, error) {
 }
 
 func fromEnv() (*Config, error) {
-	cfg := &Config{Sentry: sentry.Read()}
+	cfg := &Config{GlitchTip: glitchtip.Read()}
 
 	var err error
 	if cfg.App, err = app.Read(); err != nil {

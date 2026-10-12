@@ -90,7 +90,7 @@ docker build -f docker/production/Dockerfile . &&
 
 - **`app/main.go` only starts.** It reads the config, builds the parts and passes them on.
   - A decision, like which mail sender to use, belongs to a package (`mail.New`).
-  - Objects built from the config are built in `main.go` and passed to `router.NewRouter` as parameters. These are the logger, the reporter, the Sentry options of the browser, the telemetry, the pool, the languages, the public files and the mail sender.
+  - Objects built from the config are built in `main.go` and passed to `router.NewRouter` as parameters. These are the logger, the reporter, the GlitchTip options of the browser, the telemetry, the pool, the languages, the public files and the mail sender.
 - **`app/core/` is the reusable core.** It takes plain values, never the app config, and never imports `app/internal/` (depguard). A big core package becomes a facade over subpackages, like `vite` (`manifest`, `devserver`, `tags`), `locale` and `reporting`.
 - **`app/internal/<domain>/` holds only packages:**
   - `handler`, when the domain has routes. It holds one file per route and, when the route needs one, its test, nothing else; the helpers of the tests live in the test files.
@@ -108,7 +108,7 @@ docker build -f docker/production/Dockerfile . &&
 - **Errors and logs.**
   - An unexpected error goes to `reporting.Error(c, err)`, and the handler returns. Never use `c.Error` (forbidigo).
   - An error the request survives goes to `reporting.Warning(c, err)`.
-  - Every reported problem reaches the injected log too, not only Sentry, so it shows where `SENTRY_DSN` is empty. A new reporting path keeps that.
+  - Every reported problem reaches the injected log and the span too, not only GlitchTip, so it shows where `GLITCHTIP_DSN` is empty. A new reporting path keeps that.
   - Log only through the injected `*slog.Logger` with a context (`InfoContext`, `LogAttrs`), with typed `slog.Attr` values and the key constants of `app/core/logging`.
 - **Traces.** Only `app/core/telemetry` imports OpenTelemetry (depguard). Everything else gets its instrumentation from there:
   - an HTTP client to another service takes `telemetry.Transport`, so its calls join the request's trace;
@@ -200,7 +200,7 @@ docker build -f docker/production/Dockerfile . &&
 2. A message key is a top-level `const KeyX api.Key = "<domain>.<what>"`. Give it a text in every `locale/*.go` and run `go run ./tools/i18n`.
 3. Mark the request and answer types with `//tsgen:assets/app/<Domain>/types/<Name>.ts <Name>`, adding `request` for a body. Then run `go run ./tools/tsgen`.
 4. Add the route to `routes.go` on its own line, in the group `apiRoutes`.
-   - That group carries `api.InternalErrors()`, which turns `reporting.Error` into the 500 envelope. Outside it, `reporting.Error` only records the error, the response stays an empty 200, and Sentry never hears of it.
+   - That group carries `api.InternalErrors()`, which turns `reporting.Error` into the 500 envelope. Outside it, `reporting.Error` only records the error, the response stays an empty 200, and GlitchTip never hears of it.
    - Put the route in the `signedIn` group, which sits inside `apiRoutes`, when it needs the session. The handler then reads the user with `authn.UserID(c)`.
    - To limit failed attempts, add `ratelimit.Middleware` with a store of its own scope (`failures.New(pool, "<scope>")`), its limit and window. The handler records each failure with `ratelimit.Failed(c)`. Without that call the limit never trips, and a shared scope would delete the other limit's attempts.
 5. Test it in `<route>_test.go` (package `handler_test`) through its real path. Check the status, the envelope and the cookies, and set up state through the routes where they can make it.
@@ -315,11 +315,12 @@ These were chosen with their costs in mind. Don't propose to undo them.
   - The limit of failed attempts lives in the table `auth_failures`. Accepted cost: a parallel burst can pass the limit by a few attempts, because the middleware counts before the hash and the failure is recorded after it.
   - Roles and permissions don't exist yet, because they depend on the project and on multitenancy.
 - **Database.** PostgreSQL through pgx, goose migrations at start under a lock, and queries in SQL through sqlc. No ORM and no schema tool; migrations are written by hand.
-- **Undo.** A failed later step of a handler is undone by a domain delete reported to Sentry, not by a transaction across a hash.
+- **Undo.** A failed later step of a handler is undone by a domain delete reported to GlitchTip, not by a transaction across a hash.
 - **Operations.**
   - Metrics go out over OTLP with the traces.
   - The access log keeps `/ping` and `/readyz`.
-  - Logs are slog on stdout, JSON by default, and never go out over OTLP. The agent of the platform reads stdout, so a crash and a failed start reach the logs too. Traces go through OpenTelemetry over OTLP/HTTP, and the trace ID of the log, Sentry and `X-Trace-Id` is the one of the server span.
+  - Logs are slog on stdout, JSON by default, and never go out over OTLP. The agent of the platform reads stdout, so a crash and a failed start reach the logs too. Traces go through OpenTelemetry over OTLP/HTTP, and the trace ID of the log, GlitchTip and `X-Trace-Id` is the one of the server span.
+  - Errors go to GlitchTip through the Sentry SDKs, never to the Sentry service. The build uploads the source maps, and GlitchTip pairs them with the bundles by debug ID.
 - **CSP and measurement.**
   - The CSP comes from our own middleware, with nonces, `strict-dynamic` and Trusted Types.
   - `img-src` and `connect-src` allow `https:`.

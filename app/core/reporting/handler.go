@@ -5,6 +5,8 @@ import (
 
 	"github.com/getsentry/sentry-go"
 	"github.com/gin-gonic/gin"
+
+	"gokick/app/core/telemetry"
 )
 
 const stackKey = "reporting.stack"
@@ -12,6 +14,8 @@ const stackKey = "reporting.stack"
 const warningsKey = "reporting.warnings"
 
 func Error(c *gin.Context, err error) {
+	telemetry.RecordError(c.Request.Context(), err)
+
 	_ = c.Error(err)
 	if _, exists := c.Get(stackKey); exists == false {
 		c.Set(stackKey, sentry.NewStacktrace())
@@ -19,6 +23,7 @@ func Error(c *gin.Context, err error) {
 }
 
 func Warning(c *gin.Context, err error) {
+	telemetry.RecordError(c.Request.Context(), err)
 	c.Set(warningsKey, append(Warnings(c), err))
 
 	if hub := sentry.GetHubFromContext(c.Request.Context()); hub != nil {

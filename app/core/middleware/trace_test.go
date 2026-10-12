@@ -114,3 +114,73 @@ func traceIDs(t *testing.T, headers map[string]string) map[string]string {
 
 	return ids
 }
+
+func TestReportedProblemsReachTheSpanWithTheirStack(t *testing.T) {
+	tests := []struct {
+		name string
+
+		handler gin.HandlerFunc
+
+		message string
+
+		culprit string
+
+		status string
+	}{
+		{"error", reportError, "database unreachable", "middleware.reportError", "STATUS_CODE_ERROR"},
+		{"warning", reportWarning, "mail not sent", "middleware.reportWarning", "STATUS_CODE_UNSET"},
+		{"panic", panicking, "panic: boom", "middleware.panicking", "STATUS_CODE_ERROR"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			status, exception := reportedProblem(t, tt.handler)
+
+			if status != tt.status || exception["exception.message"] != tt.message {
+				t.Errorf("status %s, message %q", status, exception["exception.message"])
+			}
+
+			if strings.Contains(exception["exception.stacktrace"], tt.culprit) == false {
+				t.Errorf("no %s in the stack %s", tt.culprit, exception["exception.stacktrace"])
+			}
+		})
+	}
+}
+
+func reportError(c *gin.Context) {
+	reporting.Error(c, errors.New("database unreachable"))
+	c.Status(http.StatusInternalServerError)
+}
+
+func reportWarning(c *gin.Context) {
+	reporting.Warning(c, errors.New("mail not sent"))
+	c.Status(http.StatusNoContent)
+}
+
+func panicking(*gin.Context) {
+	panic("boom")
+}
+
+func reportedProblem(t *testing.T, handler gin.HandlerFunc) (status string, exception map[string]string) {
+	t.Helper()
+
+	collector := testkit.Collector(t)
+	tel := telemetry.New(telemetry.Config{
+		Endpoint: collector.URL,
+
+		ServiceName: "app",
+
+		SampleRatio: 1,
+	}, "test", "v1", testkit.DiscardLogs())
+	router := newTracedRouter(t, testkit.DiscardLogs(), &reporting.Reporter{}, tel)
+	router.GET("/problem", handler)
+
+	testkit.Serve(router, testkit.Request(t, http.MethodGet, "/problem"))
+	tel.Shutdown(5 * time.Second)
+
+	spans := collector.Spans()
+	if len(spans) != 1 || len(spans[0].Events) != 1 || spans[0].Events[0].Name != "exception" {
+		t.Fatalf("spans %+v", spans)
+	}
+
+	return spans[0].Status, spans[0].Events[0].Attributes
+}
