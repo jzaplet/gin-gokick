@@ -2,6 +2,8 @@ package telemetry_test
 
 import (
 	"context"
+	"errors"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -16,6 +18,7 @@ import (
 
 	"gokick/app/core/database"
 	"gokick/app/core/httpserver"
+	"gokick/app/core/logging"
 	"gokick/app/core/telemetry"
 	"gokick/app/core/testkit"
 )
@@ -24,7 +27,7 @@ const parentTrace = "4bf92f3577b34da6a3ce929d0e0e4736"
 
 var traceID = regexp.MustCompile(`^[0-9a-f]{32}$`)
 
-func TestShutdownSendsSpansAndMetricsToTheirPaths(t *testing.T) {
+func TestShutdownSendsSpansMetricsAndLogsToTheirPaths(t *testing.T) {
 	collector := testkit.Collector(t)
 	cfg := telemetry.Config{
 		Endpoint: collector.URL + "/otlp/",
@@ -41,6 +44,7 @@ func TestShutdownSendsSpansAndMetricsToTheirPaths(t *testing.T) {
 	tel := telemetry.New(cfg, "staging", "v1", testkit.DiscardLogs())
 
 	res := testkit.Serve(newRouter(t, tel), testkit.Request(t, http.MethodGet, "/notes/7"))
+	exported(tel).InfoContext(t.Context(), "started")
 	tel.Shutdown(5 * time.Second)
 
 	paths := map[string]bool{}
@@ -48,7 +52,7 @@ func TestShutdownSendsSpansAndMetricsToTheirPaths(t *testing.T) {
 		paths[request.Path] = request.Header.Get("Authorization") == "Bearer token"
 	}
 
-	if len(paths) != 2 || paths["/otlp/v1/traces"] == false || paths["/otlp/v1/metrics"] == false {
+	if len(paths) != 3 || paths["/otlp/v1/traces"] == false || paths["/otlp/v1/metrics"] == false || paths["/otlp/v1/logs"] == false {
 		t.Fatalf("paths and their authorization %v", paths)
 	}
 
@@ -58,11 +62,13 @@ func TestShutdownSendsSpansAndMetricsToTheirPaths(t *testing.T) {
 	}
 
 	points := collector.Latest("http.server.request.duration")
-	if len(points) == 0 {
-		t.Fatal("no request metrics")
+	logs := collector.Logs()
+
+	if len(points) == 0 || len(logs) == 0 {
+		t.Fatalf("points %+v, logs %+v", points, logs)
 	}
 
-	for _, resource := range []map[string]string{spans[0].Resource, points[0].Resource} {
+	for _, resource := range []map[string]string{spans[0].Resource, points[0].Resource, logs[0].Resource} {
 		if resource["service.name"] != "app" || resource["service.namespace"] != "shop" || resource["service.version"] != "v1" || resource["deployment.environment.name"] != "staging" {
 			t.Errorf("resource %v", resource)
 		}
@@ -154,8 +160,8 @@ func TestMetricsStayCumulativeWhenTheEnvironmentPrefersDeltas(t *testing.T) {
 	}
 }
 
-func TestShutdownSendsTheMetricsWhileTheTracesHang(t *testing.T) {
-	metrics := make(chan string, 1)
+func TestShutdownSendsTheMetricsAndLogsWhileTheTracesHang(t *testing.T) {
+	sent := make(chan string, 10)
 	release := make(chan struct{})
 	hanging := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/v1/traces") {
@@ -164,7 +170,7 @@ func TestShutdownSendsTheMetricsWhileTheTracesHang(t *testing.T) {
 			return
 		}
 
-		metrics <- r.URL.Path
+		sent <- r.URL.Path
 
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -174,12 +180,54 @@ func TestShutdownSendsTheMetricsWhileTheTracesHang(t *testing.T) {
 	tel := start(t, hanging.URL, testkit.DiscardLogs())
 
 	testkit.Serve(newRouter(t, tel), testkit.Request(t, http.MethodGet, "/notes/1"))
+	exported(tel).InfoContext(t.Context(), "stopping")
 	tel.Shutdown(500 * time.Millisecond)
 
-	select {
-	case <-metrics:
-	default:
-		t.Error("no metrics were sent")
+	paths := map[string]bool{}
+	for len(sent) > 0 {
+		paths[<-sent] = true
+	}
+
+	if paths["/v1/metrics"] == false || paths["/v1/logs"] == false {
+		t.Errorf("sent %v", paths)
+	}
+}
+
+func TestLogsCarryTheSpanOfTheirRequestAndKeepOurKeys(t *testing.T) {
+	collector := testkit.Collector(t)
+	tel := start(t, collector.URL, testkit.DiscardLogs())
+	logger := exported(tel).With(logging.Err(errors.New("query failed")))
+
+	router := newRouter(t, tel)
+	router.GET("/fail", func(c *gin.Context) {
+		logger.LogAttrs(c, slog.LevelError, "request failed", slog.Any(logging.KeyPanic, errors.New("nil map")), slog.Int(logging.KeyStatus, http.StatusInternalServerError))
+		c.Status(http.StatusInternalServerError)
+	})
+
+	res := testkit.Serve(router, testkit.Request(t, http.MethodGet, "/fail"))
+
+	tel.Shutdown(5 * time.Second)
+
+	logs, spans := collector.Logs(), collector.Spans()
+	if len(logs) != 1 || len(spans) != 1 {
+		t.Fatalf("logs %+v, spans %+v", logs, spans)
+	}
+
+	record := logs[0]
+	if record.TraceID != res.Header().Get("X-Trace-Id") || record.SpanID != spans[0].SpanID || record.Severity != "ERROR" || record.Body != "request failed" {
+		t.Errorf("record %+v, span %+v", record, spans[0])
+	}
+
+	for key, want := range map[string]string{
+		logging.KeyError: "query failed",
+
+		logging.KeyPanic: "nil map",
+
+		logging.KeyStatus: "500",
+	} {
+		if record.Attributes[key] != want {
+			t.Errorf("%s=%q, want %q in %v", key, record.Attributes[key], want, record.Attributes)
+		}
 	}
 }
 
@@ -327,6 +375,7 @@ func TestWithoutAnEndpointNothingIsSent(t *testing.T) {
 	tel := start(t, "", testkit.DiscardLogs())
 
 	res := testkit.Serve(newRouter(t, tel), testkit.Request(t, http.MethodGet, "/notes/1"))
+	exported(tel).InfoContext(t.Context(), "started")
 	tel.Shutdown(5 * time.Second)
 
 	if traceID.MatchString(res.Header().Get("X-Trace-Id")) == false || len(collector.Requests()) != 0 {
@@ -369,6 +418,10 @@ func start(t *testing.T, endpoint string, logger *slog.Logger) *telemetry.Teleme
 
 		SampleRatio: 1,
 	}, "test", "v1", logger)
+}
+
+func exported(tel *telemetry.Telemetry) *slog.Logger {
+	return logging.New(io.Discard, logging.FormatJSON, slog.LevelInfo, tel.LogHandler())
 }
 
 func newRouter(t *testing.T, tel *telemetry.Telemetry) *gin.Engine {

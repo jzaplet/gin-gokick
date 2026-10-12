@@ -82,7 +82,7 @@ The app reads the environment, and `.env` fills in what the environment lacks. `
 | `GIN_MODE` | `release` | `debug`, `release` or `test` |
 | `TRUSTED_PROXIES` | empty | IPs and CIDRs trusted for `X-Forwarded-For` |
 | `LOG_FORMAT`, `LOG_LEVEL` | `json`, `info` | log format (`json`, `text`) and lowest level (`debug` to `error`) |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | empty | base address of an OTLP/HTTP receiver; traces go to its `/v1/traces` and metrics to `/v1/metrics`, and empty sends neither |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | empty | base address of an OTLP/HTTP receiver; traces go to its `/v1/traces`, metrics to `/v1/metrics` and logs to `/v1/logs`, and empty sends none of them |
 | `OTEL_EXPORTER_OTLP_HEADERS` | empty | headers of every export (`Authorization=Basic%20…`), with percent-encoded values |
 | `OTEL_SERVICE_NAME`, `OTEL_RESOURCE_ATTRIBUTES` | `app`, empty | `service.name`, and further attributes of every trace and metric, above all `service.namespace`; `service.instance.id` defaults to a random UUID of each start. The production compose sets `service.name` and `service.instance.id` from Swarm |
 | `OTEL_TRACES_SAMPLER_ARG` | `1` | share of the traces sent, from 0 to 1; metrics count every request |
@@ -425,6 +425,10 @@ It also writes a sample of numbers to `tests/assets/i18n/numbers`, against which
 - Every request logs the `trace_id` of its trace (see Traces), which `X-Trace-Id` returns too. A route behind the session adds `user_id`.
 - **The access log** writes the method, the route pattern in `path`, the status, the IP, the size, `duration_ms`, the reported errors and the warnings. A token in the path of a matched route stays out. A request no route matched (an unknown path, a public file) logs its real path. The query goes into `query`, because tokens never travel in it (see Measurement and consent).
   - 5xx and panics log at `error`, and a warning without 5xx at `warn`.
+- **Over OTLP too.** With `OTEL_EXPORTER_OTLP_ENDPOINT`, `app/core/telemetry` sends every record from `LOG_LEVEL` up to its `/v1/logs` as well, with the same message, level and keys, the IP and the query of the access log included. stdout stays as it is, for `docker logs` and for when the export fails.
+  - The trace and span ID travel in the fields OTLP has for them, so the export carries `user_id` but no `trace_id` attribute.
+  - An error goes as its text. The OpenTelemetry bridge would move it into `exception.message` and keep only one error of a record, so `error` and `panic` keep their keys this way.
+  - `telemetry.New` logs its own failures to stdout only, so a failing export never queues warnings about itself.
 - **Lint keeps one path.** It forbids:
   - `slog.New` outside `app/core/logging`;
   - the global logger and the `log` package;
@@ -441,7 +445,7 @@ It also writes a sample of numbers to `tests/assets/i18n/numbers`, against which
 - **What the spans carry.** The server span has the route pattern, the query and the `User-Agent`. A wrapper drops the client's IP and port and the real path before the export; the IP is in the access log line with the same `trace_id`. An outgoing request keeps its full URL with the query, except a host that puts a secret into the URL (`api.telegram.org`), which keeps only its origin. A query span carries its SQL, never its parameters.
 - **Sampling.** `OTEL_TRACES_SAMPLER_ARG` decides once per trace by its ID. It ignores the sampled flag of a remote parent, because Sentry in the browser sends every `traceparent` as not sampled.
 - **Off without an endpoint.** Without `OTEL_EXPORTER_OTLP_ENDPOINT` the app sends nothing, whatever other `OTEL_*` variable is set.
-- **Errors of the export** go to the log as warnings, and telemetry never stops the start. At shutdown the app sends what is left of the traces and the metrics at once, for at most 2 s.
+- **Errors of the export** go to the log as warnings, and telemetry never stops the start. At shutdown the app sends what is left of the traces, the metrics and the logs at once, for at most 2 s.
 
 **Sentry.**
 - `SENTRY_DSN` turns it on. Every panic and every 5xx with a reported error goes there, and several errors of one request form one event.
@@ -512,7 +516,7 @@ Each tool is switched on by its ID in the environment and runs without Google Ta
 
 **Caddy and Cloudflare.** Cloudflare proxies the domain to Caddy, and Caddy proxies it over `edge` to the app. Caddy passes `CF-Connecting-IP` unchanged. For requests without it, the compose sets `TRUSTED_PROXIES` to the overlay address pool of the Swarm (`10.64.0.0/12`), so gin skips Caddy's address. A Swarm with another `--default-addr-pool` needs that range changed.
 
-**Logs, traces and metrics.** Alloy sends the logs of every container to Loki with the stack and the service as labels, so the app needs no setup for them. The compose sends the traces and metrics to `http://otel:4318`, the OTLP receiver on `edge`, with the stack as `service.namespace`; the repository variable `OTEL_EXPORTER_OTLP_ENDPOINT` points them elsewhere.
+**Logs, traces and metrics.** The compose sends all three to `http://otel:4318`, the OTLP receiver on `edge`, with the stack as `service.namespace` and the server as `host.name`; the repository variable `OTEL_EXPORTER_OTLP_ENDPOINT` points them elsewhere. Alloy sends the stdout of the other containers to Loki, and the label `logs: otlp` tells it to skip the app, whose logs would come twice. What never reaches the export stays only in `docker service logs`: an invalid configuration, which stops the app before telemetry starts, the warnings of telemetry itself and the dump of a crash.
 
 **The first deploy.** [first-deploy.md](first-deploy.md) walks through it: Cloudflare and Caddy, Sentry, the workflows with their variables and secrets, the deploy, backups, Grafana and the checks.
 

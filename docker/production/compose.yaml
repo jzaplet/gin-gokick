@@ -2,6 +2,8 @@ services:
   app:
     image: ${IMAGE:?}
     entrypoint: ["/bin/sh", "-c", "for f in /run/secrets/*; do [ -f \"$$f\" ] && export \"$${f##*/}=$$(cat \"$$f\")\"; done; exec /app/gokick"]
+    labels:
+      logs: otlp
     environment:
       APP_URL: https://${APP_DOMAIN:?}
       APP_ENVIRONMENT: production
@@ -28,7 +30,7 @@ services:
       SENTRY_FRONTEND_DSN: ${SENTRY_FRONTEND_DSN:-}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel:4318}
       OTEL_SERVICE_NAME: "{{.Service.Name}}"
-      OTEL_RESOURCE_ATTRIBUTES: "service.namespace=${STACK:?},service.instance.id={{.Task.Name}}"
+      OTEL_RESOURCE_ATTRIBUTES: "service.namespace=${STACK:?},service.instance.id={{.Task.Name}},host.name={{.Node.Hostname}}"
       OTEL_TRACES_SAMPLER_ARG: ${OTEL_TRACES_SAMPLER_ARG:-1}
       UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
       GA4_MEASUREMENT_ID: ${GA4_MEASUREMENT_ID:-}

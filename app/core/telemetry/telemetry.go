@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -43,6 +44,8 @@ type Telemetry struct {
 
 	meters *sdkmetric.MeterProvider
 
+	logs *sdklog.LoggerProvider
+
 	propagator propagation.TextMapPropagator
 
 	logger *slog.Logger
@@ -61,6 +64,8 @@ func New(cfg Config, environment, release string, logger *slog.Logger) *Telemetr
 		silent: sdktrace.NewTracerProvider(sdktrace.WithSampler(sdktrace.NeverSample())),
 
 		meters: metering(cfg, described, logger),
+
+		logs: recording(cfg, described, logger),
 
 		propagator: propagation.NewCompositeTextMapPropagator(sentryTrace{}, propagation.TraceContext{}),
 
@@ -89,14 +94,15 @@ func (t *Telemetry) Shutdown(timeout time.Duration) {
 	var (
 		wg sync.WaitGroup
 
-		traces, metrics error
+		traces, metrics, logs error
 	)
 
 	wg.Go(func() { traces = t.provider.Shutdown(ctx) })
 	wg.Go(func() { metrics = t.meters.Shutdown(ctx) })
+	wg.Go(func() { logs = t.logs.Shutdown(ctx) })
 	wg.Wait()
 
-	if err := errors.Join(traces, metrics); err != nil {
+	if err := errors.Join(traces, metrics, logs); err != nil {
 		t.logger.LogAttrs(ctx, slog.LevelWarn, "opentelemetry failed", logging.Err(err))
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"testing"
 
+	collogspb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
 	colmetricspb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
 	coltracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
@@ -24,7 +25,23 @@ type Span struct {
 
 	TraceID string
 
+	SpanID string
+
 	ParentSpanID string
+
+	Attributes map[string]string
+
+	Resource map[string]string
+}
+
+type Log struct {
+	Body string
+
+	Severity string
+
+	TraceID string
+
+	SpanID string
 
 	Attributes map[string]string
 
@@ -61,6 +78,8 @@ type Collector struct {
 	spans []Span
 
 	points []Point
+
+	logs []Log
 }
 
 func Start(tb testing.TB) *Collector {
@@ -86,6 +105,13 @@ func (c *Collector) Spans() []Span {
 	defer c.mu.Unlock()
 
 	return append([]Span(nil), c.spans...)
+}
+
+func (c *Collector) Logs() []Log {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return append([]Log(nil), c.logs...)
 }
 
 func (c *Collector) Latest(metric string) []Point {
@@ -140,9 +166,12 @@ func (c *Collector) receive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if strings.HasSuffix(r.URL.Path, "/v1/metrics") {
+	switch {
+	case strings.HasSuffix(r.URL.Path, "/v1/metrics"):
 		err = c.receiveMetrics(body)
-	} else {
+	case strings.HasSuffix(r.URL.Path, "/v1/logs"):
+		err = c.receiveLogs(body)
+	default:
 		err = c.receiveSpans(body)
 	}
 
@@ -191,9 +220,44 @@ func (c *Collector) receiveSpans(body []byte) error {
 
 					TraceID: hex.EncodeToString(span.GetTraceId()),
 
+					SpanID: hex.EncodeToString(span.GetSpanId()),
+
 					ParentSpanID: hex.EncodeToString(span.GetParentSpanId()),
 
 					Attributes: values(span.GetAttributes()),
+
+					Resource: resource,
+				})
+			}
+		}
+	}
+
+	return nil
+}
+
+func (c *Collector) receiveLogs(body []byte) error {
+	var export collogspb.ExportLogsServiceRequest
+	if err := proto.Unmarshal(body, &export); err != nil {
+		return err
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for _, resourceLogs := range export.GetResourceLogs() {
+		resource := values(resourceLogs.GetResource().GetAttributes())
+		for _, scopeLogs := range resourceLogs.GetScopeLogs() {
+			for _, record := range scopeLogs.GetLogRecords() {
+				c.logs = append(c.logs, Log{
+					Body: record.GetBody().GetStringValue(),
+
+					Severity: record.GetSeverityText(),
+
+					TraceID: hex.EncodeToString(record.GetTraceId()),
+
+					SpanID: hex.EncodeToString(record.GetSpanId()),
+
+					Attributes: values(record.GetAttributes()),
 
 					Resource: resource,
 				})

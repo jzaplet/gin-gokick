@@ -45,10 +45,12 @@ func run() int {
 		return 1
 	}
 
-	logger := logging.New(os.Stdout, cfg.Log.Format, cfg.Log.Level)
+	console := logging.New(os.Stdout, cfg.Log.Format, cfg.Log.Level)
 
-	tel := telemetry.New(cfg.Telemetry, cfg.App.Environment, cfg.App.Release, logger)
+	tel := telemetry.New(cfg.Telemetry, cfg.App.Environment, cfg.App.Release, console)
 	defer tel.Shutdown(telemetryFlushTimeout)
+
+	logger := logging.New(os.Stdout, cfg.Log.Format, cfg.Log.Level, tel.LogHandler())
 
 	locales, err := locale.New(cfg.Locale.Default, cfg.Locale.Locales)
 	if err != nil {

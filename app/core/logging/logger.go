@@ -11,13 +11,20 @@ const FormatJSON = "json"
 
 const FormatText = "text"
 
-func New(w io.Writer, format string, level slog.Level) *slog.Logger {
+func New(w io.Writer, format string, level slog.Level, exports ...slog.Handler) *slog.Logger {
 	options := &slog.HandlerOptions{Level: level}
+
+	var console slog.Handler = slog.NewJSONHandler(w, options)
 	if format == FormatText {
-		return slog.New(contextHandler{slog.NewTextHandler(w, options)})
+		console = slog.NewTextHandler(w, options)
 	}
 
-	return slog.New(contextHandler{slog.NewJSONHandler(w, options)})
+	handlers := []slog.Handler{contextHandler{console}}
+	for _, export := range exports {
+		handlers = append(handlers, exportHandler{Handler: export, level: level})
+	}
+
+	return slog.New(slog.NewMultiHandler(handlers...))
 }
 
 func ErrorLog(logger *slog.Logger) *log.Logger {

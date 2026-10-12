@@ -52,3 +52,50 @@ func (h contextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 func (h contextHandler) WithGroup(name string) slog.Handler {
 	return contextHandler{h.Handler.WithGroup(name)}
 }
+
+type exportHandler struct {
+	slog.Handler
+
+	level slog.Level
+}
+
+func (h exportHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return level >= h.level && h.Handler.Enabled(ctx, level)
+}
+
+func (h exportHandler) Handle(ctx context.Context, record slog.Record) error {
+	exported := slog.NewRecord(record.Time, record.Level, record.Message, record.PC)
+	record.Attrs(func(attr slog.Attr) bool {
+		exported.AddAttrs(plain(attr))
+
+		return true
+	})
+
+	if id := UserID(ctx); id != "" {
+		exported.AddAttrs(slog.String(KeyUserID, id))
+	}
+
+	return h.Handler.Handle(ctx, exported)
+}
+
+func (h exportHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	converted := make([]slog.Attr, 0, len(attrs))
+	for _, attr := range attrs {
+		converted = append(converted, plain(attr))
+	}
+
+	return exportHandler{Handler: h.Handler.WithAttrs(converted), level: h.level}
+}
+
+func (h exportHandler) WithGroup(name string) slog.Handler {
+	return exportHandler{Handler: h.Handler.WithGroup(name), level: h.level}
+}
+
+func plain(attr slog.Attr) slog.Attr {
+	attr.Value = attr.Value.Resolve()
+	if err, ok := attr.Value.Any().(error); ok {
+		attr.Value = slog.StringValue(err.Error())
+	}
+
+	return attr
+}
