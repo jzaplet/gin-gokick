@@ -69,11 +69,13 @@ func New(cfg Config, environment, release string, logger *slog.Logger) *Telemetr
 }
 
 func (t *Telemetry) QueryTracer() pgx.QueryTracer {
+	names := newQueryNames()
+
 	return otelpgx.NewTracer(
 		otelpgx.WithTracerProvider(t.provider),
 		otelpgx.WithMeterProvider(t.meters),
-		otelpgx.WithSpanNameCtxFunc(queryName),
-		otelpgx.WithMetricOperationName(queryName),
+		otelpgx.WithSpanNameCtxFunc(names.name),
+		otelpgx.WithMetricOperationName(names.name),
 	)
 }
 

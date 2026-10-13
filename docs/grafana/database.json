@@ -82,6 +82,35 @@
         "type": "constant",
         "query": "<domain>",
         "hide": 2
+      },
+      {
+        "name": "query_domain",
+        "label": "Domain",
+        "description": "The folder of the query under app/internal, or core.",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(db_client_operation_duration_seconds_count{service_namespace=\"$project\",pgx_operation_type=\"query\"}, db_operation_name)",
+          "refId": "query_domain"
+        },
+        "definition": "label_values(db_client_operation_duration_seconds_count{service_namespace=\"$project\",pgx_operation_type=\"query\"}, db_operation_name)",
+        "regex": "/^app\\/(?:internal\\/)?([^\\/.]+)/",
+        "refresh": 2,
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "sort": 1
       }
     ]
   },
@@ -584,7 +613,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Queries per second by name",
+      "title": "Queries per second by domain",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -595,8 +624,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (db_operation_name) (rate(db_client_operation_duration_seconds_count{service_namespace=\"$project\",pgx_operation_type=\"query\",db_operation_name!=\"\"}[$__rate_interval]))",
-          "legendFormat": "{{db_operation_name}}",
+          "expr": "sum by (query_domain) (label_replace(label_replace(rate(db_client_operation_duration_seconds_count{service_namespace=\"$project\",pgx_operation_type=\"query\",db_operation_name!=\"\",db_operation_name=~\"(app/(internal/)?)?$query_domain([/.].*)?\"}[$__rate_interval]), \"query_domain\", \"other\", \"db_operation_name\", \".+\"), \"query_domain\", \"$2\", \"db_operation_name\", \"app/(internal/)?([^/.]+).*\"))",
+          "legendFormat": "{{query_domain}}",
           "range": true,
           "instant": false,
           "refId": "A"
@@ -630,7 +659,7 @@
           "sort": "desc"
         }
       },
-      "description": "sqlc names a query by its -- name: line, other SQL by its first word.",
+      "description": "The folder of the query under app/internal, or core.",
       "gridPos": {
         "x": 0,
         "y": 11,
@@ -641,7 +670,7 @@
     },
     {
       "type": "timeseries",
-      "title": "p95 query time by name",
+      "title": "p95 query time by domain",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -652,11 +681,10 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.95, sum by (le, db_operation_name) (rate(db_client_operation_duration_seconds_bucket{service_namespace=\"$project\",pgx_operation_type=\"query\",db_operation_name!=\"\"}[$__rate_interval])))",
-          "legendFormat": "{{db_operation_name}}",
+          "expr": "histogram_quantile(0.95, sum by (le, query_domain) (label_replace(label_replace(rate(db_client_operation_duration_seconds_bucket{service_namespace=\"$project\",pgx_operation_type=\"query\",db_operation_name!=\"\",db_operation_name=~\"(app/(internal/)?)?$query_domain([/.].*)?\"}[$__rate_interval]), \"query_domain\", \"other\", \"db_operation_name\", \".+\"), \"query_domain\", \"$2\", \"db_operation_name\", \"app/(internal/)?([^/.]+).*\")))",
+          "legendFormat": "{{query_domain}}",
           "range": true,
           "instant": false,
-          "exemplar": true,
           "refId": "A"
         }
       ],
@@ -697,6 +725,120 @@
       "id": 11
     },
     {
+      "type": "timeseries",
+      "title": "Queries per second by name",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (db_operation_name) (rate(db_client_operation_duration_seconds_count{service_namespace=\"$project\",pgx_operation_type=\"query\",db_operation_name!=\"\",db_operation_name=~\"(app/(internal/)?)?$query_domain([/.].*)?\"}[$__rate_interval]))",
+          "legendFormat": "{{db_operation_name}}",
+          "range": true,
+          "instant": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "A query is named by the function of the app that ran it, with its package path.",
+      "gridPos": {
+        "x": 0,
+        "y": 19,
+        "w": 12,
+        "h": 8
+      },
+      "id": 12
+    },
+    {
+      "type": "timeseries",
+      "title": "p95 query time by name",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, db_operation_name) (rate(db_client_operation_duration_seconds_bucket{service_namespace=\"$project\",pgx_operation_type=\"query\",db_operation_name!=\"\",db_operation_name=~\"(app/(internal/)?)?$query_domain([/.].*)?\"}[$__rate_interval])))",
+          "legendFormat": "{{db_operation_name}}",
+          "range": true,
+          "instant": false,
+          "exemplar": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 19,
+        "w": 12,
+        "h": 8
+      },
+      "id": 13
+    },
+    {
       "type": "table",
       "title": "Slowest queries in range",
       "datasource": {
@@ -709,7 +851,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "topk(10, histogram_quantile(0.95, sum by (le, db_operation_name) (rate(db_client_operation_duration_seconds_bucket{service_namespace=\"$project\",pgx_operation_type=\"query\",db_operation_name!=\"\"}[$__range]))))",
+          "expr": "topk(10, histogram_quantile(0.95, sum by (le, db_operation_name) (rate(db_client_operation_duration_seconds_bucket{service_namespace=\"$project\",pgx_operation_type=\"query\",db_operation_name!=\"\",db_operation_name=~\"(app/(internal/)?)?$query_domain([/.].*)?\"}[$__range]))))",
           "legendFormat": "",
           "range": false,
           "instant": true,
@@ -721,7 +863,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "round(sum by (db_operation_name) (increase(db_client_operation_duration_seconds_count{service_namespace=\"$project\",pgx_operation_type=\"query\",db_operation_name!=\"\"}[$__range]))) and on (db_operation_name) topk(10, histogram_quantile(0.95, sum by (le, db_operation_name) (rate(db_client_operation_duration_seconds_bucket{service_namespace=\"$project\",pgx_operation_type=\"query\",db_operation_name!=\"\"}[$__range]))))",
+          "expr": "round(sum by (db_operation_name) (increase(db_client_operation_duration_seconds_count{service_namespace=\"$project\",pgx_operation_type=\"query\",db_operation_name!=\"\",db_operation_name=~\"(app/(internal/)?)?$query_domain([/.].*)?\"}[$__range]))) and on (db_operation_name) topk(10, histogram_quantile(0.95, sum by (le, db_operation_name) (rate(db_client_operation_duration_seconds_bucket{service_namespace=\"$project\",pgx_operation_type=\"query\",db_operation_name!=\"\",db_operation_name=~\"(app/(internal/)?)?$query_domain([/.].*)?\"}[$__range]))))",
           "legendFormat": "",
           "range": false,
           "instant": true,
@@ -771,6 +913,23 @@
                 "value": 0
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Query"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Traces of this query",
+                    "url": "/explore?schemaVersion=1&orgId=1&panes=%7B%22x%22%3A%7B%22datasource%22%3A%22${traces}%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22tempo%22%2C%22uid%22%3A%22${traces}%22%7D%2C%22queryType%22%3A%22traceql%22%2C%22query%22%3A%22%7Bresource.service.namespace%3D%5C%22$project%5C%22%20%26%26%20name%3D%5C%22${__value.raw:percentencode}%5C%22%7D%22%2C%22limit%22%3A20%2C%22tableType%22%3A%22traces%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22${__from}%22%2C%22to%22%3A%22${__to}%22%7D%7D%7D"
+                  }
+                ]
+              }
+            ]
           }
         ]
       },
@@ -784,13 +943,14 @@
           }
         ]
       },
+      "description": "A query links to its traces in Tempo, where its span carries the SQL.",
       "gridPos": {
         "x": 0,
-        "y": 19,
+        "y": 27,
         "w": 12,
         "h": 8
       },
-      "id": 12
+      "id": 14
     },
     {
       "type": "timeseries",
@@ -805,7 +965,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (db_operation_name, pgx_operation_type) (rate(db_client_operation_errors_total{service_namespace=\"$project\"}[$__rate_interval]))",
+          "expr": "sum by (db_operation_name, pgx_operation_type) (rate(db_client_operation_errors_total{service_namespace=\"$project\",db_operation_name=~\"(app/(internal/)?)?$query_domain([/.].*)?\"}[$__rate_interval]))",
           "legendFormat": "{{db_operation_name}} {{pgx_operation_type}}",
           "range": true,
           "instant": false,
@@ -842,11 +1002,11 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 19,
+        "y": 27,
         "w": 12,
         "h": 8
       },
-      "id": 13
+      "id": 15
     },
     {
       "type": "table",
@@ -882,11 +1042,11 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 27,
+        "y": 35,
         "w": 24,
         "h": 10
       },
-      "id": 14
+      "id": 16
     },
     {
       "type": "row",
@@ -895,11 +1055,11 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 37,
+        "y": 45,
         "w": 24,
         "h": 1
       },
-      "id": 15
+      "id": 17
     },
     {
       "type": "timeseries",
@@ -984,11 +1144,11 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 38,
+        "y": 46,
         "w": 8,
         "h": 8
       },
-      "id": 16
+      "id": 18
     },
     {
       "type": "timeseries",
@@ -1063,11 +1223,11 @@
       "description": "A wait means every connection of the pool was in use.",
       "gridPos": {
         "x": 8,
-        "y": 38,
+        "y": 46,
         "w": 8,
         "h": 8
       },
-      "id": 17
+      "id": 19
     },
     {
       "type": "timeseries",
@@ -1141,11 +1301,11 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 38,
+        "y": 46,
         "w": 8,
         "h": 8
       },
-      "id": 18
+      "id": 20
     },
     {
       "type": "row",
@@ -1154,11 +1314,11 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 46,
+        "y": 54,
         "w": 24,
         "h": 1
       },
-      "id": 19
+      "id": 21
     },
     {
       "type": "timeseries",
@@ -1221,11 +1381,11 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 47,
+        "y": 55,
         "w": 8,
         "h": 8
       },
-      "id": 20
+      "id": 22
     },
     {
       "type": "timeseries",
@@ -1288,11 +1448,11 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 47,
+        "y": 55,
         "w": 8,
         "h": 8
       },
-      "id": 21
+      "id": 23
     },
     {
       "type": "timeseries",
@@ -1343,11 +1503,11 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 47,
+        "y": 55,
         "w": 8,
         "h": 8
       },
-      "id": 22
+      "id": 24
     },
     {
       "type": "timeseries",
@@ -1399,11 +1559,11 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 55,
+        "y": 63,
         "w": 8,
         "h": 8
       },
-      "id": 23
+      "id": 25
     },
     {
       "type": "timeseries",
@@ -1466,11 +1626,11 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 55,
+        "y": 63,
         "w": 8,
         "h": 8
       },
-      "id": 24
+      "id": 26
     },
     {
       "type": "timeseries",
@@ -1533,11 +1693,11 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 55,
+        "y": 63,
         "w": 8,
         "h": 8
       },
-      "id": 25
+      "id": 27
     },
     {
       "type": "table",
@@ -1631,11 +1791,11 @@
       "description": "From pg_stat_statements, which also counts what the app does not run, like the exporter and the backups. The text is normalized by PostgreSQL and cut to 120 characters.",
       "gridPos": {
         "x": 0,
-        "y": 63,
+        "y": 71,
         "w": 16,
         "h": 8
       },
-      "id": 26
+      "id": 28
     },
     {
       "type": "timeseries",
@@ -1686,11 +1846,11 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 63,
+        "y": 71,
         "w": 8,
         "h": 8
       },
-      "id": 27
+      "id": 29
     },
     {
       "type": "row",
@@ -1699,11 +1859,11 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 71,
+        "y": 79,
         "w": 24,
         "h": 1
       },
-      "id": 28
+      "id": 30
     },
     {
       "type": "timeseries",
@@ -1755,11 +1915,11 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 72,
+        "y": 80,
         "w": 8,
         "h": 8
       },
-      "id": 29
+      "id": 31
     },
     {
       "type": "timeseries",
@@ -1822,11 +1982,11 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 72,
+        "y": 80,
         "w": 8,
         "h": 8
       },
-      "id": 30
+      "id": 32
     },
     {
       "type": "timeseries",
@@ -1889,11 +2049,11 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 72,
+        "y": 80,
         "w": 8,
         "h": 8
       },
-      "id": 31
+      "id": 33
     }
   ]
 }

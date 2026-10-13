@@ -116,6 +116,7 @@ docker build -f docker/production/Dockerfile . &&
 - **Traces.** Only `app/core/telemetry` imports OpenTelemetry (depguard). Everything else gets its instrumentation from there:
   - an HTTP client to another service takes `telemetry.Transport`, so its calls join the request's trace;
   - a route nobody needs in traces, like a health check, joins the list `tel.Middleware` gets in `router.go`;
+  - a query takes the name of the function of the app that runs it, so SQL runs in the function it belongs to, never through a shared helper, which would give every query the helper's name;
   - an attribute that can carry personal data joins `personal` in `app/core/telemetry`, which the export drops;
   - a service that puts a secret into its URL, like the Telegram bot API, joins `secretInURL` there, whose URLs the export shortens to the origin;
   - a number the business follows over time, like the active sessions, becomes `tel.Gauge` in `main.go` beside `tel.ObservePool`, with a function of its domain package that counts it, and its stop is deferred after the pool closes.

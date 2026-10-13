@@ -12,9 +12,11 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"gokick/app/core/database"
 	"gokick/app/core/httpserver"
@@ -189,7 +191,7 @@ func TestShutdownSendsTheMetricsWhileTheTracesHang(t *testing.T) {
 	}
 }
 
-func TestQueriesAreNamedBySqlcOrByTheirOperation(t *testing.T) {
+func TestQueriesAreNamedByTheFunctionThatRunsThem(t *testing.T) {
 	collector := testkit.Collector(t)
 	tel := start(t, collector.URL, testkit.DiscardLogs())
 
@@ -201,14 +203,16 @@ func TestQueriesAreNamedBySqlcOrByTheirOperation(t *testing.T) {
 	t.Cleanup(pool.Close)
 	tel.ObservePool(pool)
 
+	if err := database.Migrate(t.Context(), pool, fstest.MapFS{"20260101000000_create_notes.sql": {Data: []byte("-- +goose Up\nCREATE TABLE notes (id int);\n\n-- +goose Down\nDROP TABLE notes;\n")}}, testkit.DiscardLogs()); err != nil {
+		t.Fatal(err)
+	}
+
 	router := newRouter(t, tel)
 	router.GET("/queries", func(c *gin.Context) {
-		for _, query := range []string{"-- name: CountNotes :one\nSELECT 1", "SELECT 1"} {
-			if _, err := pool.Exec(c.Request.Context(), query); err != nil {
-				c.Status(http.StatusInternalServerError)
+		if err := errors.Join((&notes{pool: pool}).Count(c.Request.Context()), (&tasks{pool: pool}).Count(c.Request.Context())); err != nil {
+			c.Status(http.StatusInternalServerError)
 
-				return
-			}
+			return
 		}
 
 		c.Status(http.StatusNoContent)
@@ -227,8 +231,20 @@ func TestQueriesAreNamedBySqlcOrByTheirOperation(t *testing.T) {
 		operations[point.Attributes["db.operation.name"]] = true
 	}
 
-	if slices.Contains(spans, "CountNotes") == false || slices.Contains(spans, "SELECT") == false || operations["CountNotes"] == false || operations["SELECT"] == false {
-		t.Errorf("spans %v, operations %v", spans, operations)
+	for _, name := range []string{"app/core/telemetry_test.(*notes).Count", "app/core/telemetry_test.(*tasks).Count"} {
+		if slices.Contains(spans, name) == false || operations[name] == false {
+			t.Errorf("%s: spans %v, operations %v", name, spans, operations)
+		}
+	}
+
+	if operations["app/core/database.Migrate"] == false {
+		t.Errorf("the migration is missing from %v", operations)
+	}
+
+	for name := range operations {
+		if name != "" && strings.HasPrefix(name, "app/") == false {
+			t.Errorf("%s is not named by the function that ran it", name)
+		}
 	}
 
 	if slices.Contains(collector.Metrics(), "pgxpool.total_connections") == false {
@@ -402,6 +418,26 @@ func TestExportFailuresReachTheLog(t *testing.T) {
 	if len(entries) == 0 || entries[0]["level"] != "WARN" || entries[0]["error"] == nil {
 		t.Errorf("log %v", entries)
 	}
+}
+
+type notes struct {
+	pool *pgxpool.Pool
+}
+
+func (n *notes) Count(ctx context.Context) error {
+	_, err := n.pool.Exec(ctx, "SELECT count(*) FROM notes")
+
+	return err
+}
+
+type tasks struct {
+	pool *pgxpool.Pool
+}
+
+func (t *tasks) Count(ctx context.Context) error {
+	_, err := t.pool.Exec(ctx, "SELECT 1")
+
+	return err
 }
 
 func start(t *testing.T, endpoint string, logger *slog.Logger) *telemetry.Telemetry {
