@@ -470,7 +470,7 @@ It also writes a sample of numbers to `tests/assets/i18n/numbers`, against which
 | `http.server.request.duration` | histogram in seconds | `http.request.method`, `http.route`, `http.response.status_code`, `error.type` |
 | `http.server.active_requests` | gauge | requests in progress, health checks too |
 | `http.client.request.duration` | histogram in seconds | outgoing requests of `telemetry.Transport` by method, host and status |
-| `db.client.operation.duration`, `db.client.operation.errors` | histogram, counter | `pgx.operation.type` (`query`, `acquire`, `connect`), and for a query `db.operation.name`, the name of its span |
+| `db.client.operation.duration`, `db.client.operation.errors` | histogram, counter | `pgx.operation.type` (`query`, `prepare`, `acquire`, `connect`, `batch`, `copy`), and for a query `db.operation.name`, the name of its span. otelpgx gives the duration of a batch and of a `COPY` no name, so the panels of the Database board that go by name leave them out |
 | `pgxpool.*` | gauges and counters | connections of the pool: idle, acquired, total, and the waits for one |
 | `go.*` | runtime of Go | memory, goroutines, the goal of the GC, the processors, and `go.schedule.duration`, how long a goroutine waited for a thread |
 | `go.gc.cycles`, `go.gc.cpu_time`, `go.gc.pause.cpu_time` | counters | GC cycles, the CPU time of the GC, and its pauses times GOMAXPROCS, read from `runtime/metrics`, which the runtime instrumentation of OpenTelemetry leaves out |
