@@ -255,10 +255,9 @@ To switch them on, set the variable `POSTGRES_IMAGE` to the PostgreSQL image wit
 ## 6. Grafana
 
 [grafana/](grafana/) holds the seven boards of a project, which [README](README.md#production) describes. They have placeholders instead of the project:
-- `<projectname>` in the `uid`, in the tag that links the boards to each other, and in the names of the GlitchTip projects;
+- `<projectname>` in the `uid`, in the tag, and in the names of the GlitchTip projects;
 - `<stack>` in the default of the variable `project`, which picks the stack in Prometheus, Loki and Tempo;
-- `<domain>` in the titles and in the variable `domain`, which picks the site in the metrics of Caddy;
-- `<glitchtip>` and `<glitchtip-org>` in the link to the issues.
+- `<domain>` in the titles and in the variable `domain`, which picks the site in the metrics of Caddy.
 
 **What the boards need from `<infra-repo>`**, besides the metrics, logs and traces of the app:
 - Prometheus with `--query.lookback-delta=2m` and its Grafana datasource with `timeInterval: 30s`. Series pushed over OTLP get no staleness marker, so the lookback drops a stopped replica after 4 pushes, and `$__rate_interval` spans at least 4 of them.
@@ -273,9 +272,8 @@ The files in the repository stay as they are, and the import fills in the values
 
 ```bash
 for board in docs/grafana/*.json; do
-  dashboard=$(sed -e 's/[<]projectname[>]/<projectname>/g' -e 's/[<]stack[>]/<stack>/g' -e 's/[<]domain[>]/<domain>/g' \
-    -e 's|[<]glitchtip[>]|<glitchtip>|g' -e 's/[<]glitchtip-org[>]/<glitchtip-org>/g' "$board")
-  grep -cE '[<](projectname|stack|domain|glitchtip|glitchtip-org)[>]' <<<"$dashboard"
+  dashboard=$(sed -e 's/[<]projectname[>]/<projectname>/g' -e 's/[<]stack[>]/<stack>/g' -e 's/[<]domain[>]/<domain>/g' "$board")
+  grep -cE '[<](projectname|stack|domain)[>]' <<<"$dashboard"
   jq '{dashboard: (. + {id: null}), overwrite: true, folderUid: ""}' <<<"$dashboard" \
     | curl -sS --fail-with-body -X POST -H @<(printf 'Authorization: Bearer %s' "$GRAFANA_TOKEN") -H 'Content-Type: application/json' \
         --data-binary @- <grafana>/api/dashboards/db | jq -c '{status, url}'

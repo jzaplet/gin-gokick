@@ -13,25 +13,6 @@
     "to": "now"
   },
   "refresh": "30s",
-  "links": [
-    {
-      "title": "<domain>",
-      "type": "dashboards",
-      "tags": [
-        "<projectname>"
-      ],
-      "asDropdown": false,
-      "includeVars": true,
-      "keepTime": true
-    },
-    {
-      "title": "GlitchTip",
-      "type": "link",
-      "url": "<glitchtip>/<glitchtip-org>/issues",
-      "targetBlank": true,
-      "icon": "bolt"
-    }
-  ],
   "annotations": {
     "list": [
       {
@@ -107,7 +88,7 @@
   "panels": [
     {
       "type": "stat",
-      "title": "Error lines in range",
+      "title": "Error lines",
       "datasource": {
         "type": "loki",
         "uid": "${logs}"
@@ -156,6 +137,7 @@
         "graphMode": "none",
         "textMode": "auto"
       },
+      "description": "Log lines at error in the selected range.",
       "gridPos": {
         "x": 0,
         "y": 0,
@@ -166,7 +148,7 @@
     },
     {
       "type": "stat",
-      "title": "Warning lines in range",
+      "title": "Warning lines",
       "datasource": {
         "type": "loki",
         "uid": "${logs}"
@@ -215,6 +197,7 @@
         "graphMode": "none",
         "textMode": "auto"
       },
+      "description": "Log lines at warn in the selected range.",
       "gridPos": {
         "x": 6,
         "y": 0,
@@ -225,7 +208,7 @@
     },
     {
       "type": "stat",
-      "title": "5xx in range",
+      "title": "5xx responses",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -276,6 +259,7 @@
         "graphMode": "none",
         "textMode": "auto"
       },
+      "description": "Responses with 5xx in the selected range.",
       "gridPos": {
         "x": 12,
         "y": 0,
@@ -286,7 +270,7 @@
     },
     {
       "type": "stat",
-      "title": "New GlitchTip issues in range",
+      "title": "New issues",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -337,6 +321,7 @@
         "graphMode": "none",
         "textMode": "auto"
       },
+      "description": "New issues of the GlitchTip projects of the app in the selected range.",
       "gridPos": {
         "x": 18,
         "y": 0,

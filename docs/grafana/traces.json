@@ -13,25 +13,6 @@
     "to": "now"
   },
   "refresh": "30s",
-  "links": [
-    {
-      "title": "<domain>",
-      "type": "dashboards",
-      "tags": [
-        "<projectname>"
-      ],
-      "asDropdown": false,
-      "includeVars": true,
-      "keepTime": true
-    },
-    {
-      "title": "GlitchTip",
-      "type": "link",
-      "url": "<glitchtip>/<glitchtip-org>/issues",
-      "targetBlank": true,
-      "icon": "bolt"
-    }
-  ],
   "annotations": {
     "list": [
       {
@@ -107,7 +88,7 @@
   "panels": [
     {
       "type": "stat",
-      "title": "Server spans per second",
+      "title": "Server spans/s",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -163,7 +144,7 @@
     },
     {
       "type": "stat",
-      "title": "Share of failed server spans",
+      "title": "Failed spans",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -217,6 +198,7 @@
         "graphMode": "area",
         "textMode": "auto"
       },
+      "description": "Share of the server spans that failed.",
       "gridPos": {
         "x": 6,
         "y": 0,
@@ -227,7 +209,7 @@
     },
     {
       "type": "stat",
-      "title": "p95 of server spans",
+      "title": "p95 server span",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -291,7 +273,7 @@
     },
     {
       "type": "stat",
-      "title": "Outgoing requests per second",
+      "title": "Outgoing req/s",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"

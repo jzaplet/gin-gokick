@@ -13,25 +13,6 @@
     "to": "now"
   },
   "refresh": "30s",
-  "links": [
-    {
-      "title": "<domain>",
-      "type": "dashboards",
-      "tags": [
-        "<projectname>"
-      ],
-      "asDropdown": false,
-      "includeVars": true,
-      "keepTime": true
-    },
-    {
-      "title": "GlitchTip",
-      "type": "link",
-      "url": "<glitchtip>/<glitchtip-org>/issues",
-      "targetBlank": true,
-      "icon": "bolt"
-    }
-  ],
   "annotations": {
     "list": [
       {
@@ -134,7 +115,7 @@
   "panels": [
     {
       "type": "stat",
-      "title": "Requests per second",
+      "title": "Requests/s",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -190,7 +171,7 @@
     },
     {
       "type": "stat",
-      "title": "p95 response time",
+      "title": "p95 response",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -254,7 +235,7 @@
     },
     {
       "type": "stat",
-      "title": "p99 response time",
+      "title": "p99 response",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -318,7 +299,7 @@
     },
     {
       "type": "stat",
-      "title": "Requests in progress",
+      "title": "In progress",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -364,6 +345,7 @@
         "graphMode": "area",
         "textMode": "auto"
       },
+      "description": "Requests the app is handling right now.",
       "gridPos": {
         "x": 18,
         "y": 0,
@@ -374,7 +356,7 @@
     },
     {
       "type": "stat",
-      "title": "Share of 5xx errors",
+      "title": "5xx share",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -428,6 +410,7 @@
         "graphMode": "area",
         "textMode": "auto"
       },
+      "description": "Share of the requests that ended with 5xx.",
       "gridPos": {
         "x": 0,
         "y": 5,
@@ -438,7 +421,7 @@
     },
     {
       "type": "stat",
-      "title": "Share of 4xx",
+      "title": "4xx share",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -484,6 +467,7 @@
         "graphMode": "area",
         "textMode": "auto"
       },
+      "description": "Share of the requests that ended with 4xx.",
       "gridPos": {
         "x": 6,
         "y": 5,
@@ -494,7 +478,7 @@
     },
     {
       "type": "stat",
-      "title": "Time at the edge",
+      "title": "Edge overhead",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"

@@ -13,25 +13,6 @@
     "to": "now"
   },
   "refresh": "30s",
-  "links": [
-    {
-      "title": "<domain>",
-      "type": "dashboards",
-      "tags": [
-        "<projectname>"
-      ],
-      "asDropdown": false,
-      "includeVars": true,
-      "keepTime": true
-    },
-    {
-      "title": "GlitchTip",
-      "type": "link",
-      "url": "<glitchtip>/<glitchtip-org>/issues",
-      "targetBlank": true,
-      "icon": "bolt"
-    }
-  ],
   "annotations": {
     "list": [
       {
@@ -167,7 +148,7 @@
     },
     {
       "type": "stat",
-      "title": "CPU (cores)",
+      "title": "CPU cores",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -223,7 +204,7 @@
     },
     {
       "type": "stat",
-      "title": "Memory of the limit",
+      "title": "Memory of limit",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -288,7 +269,7 @@
     },
     {
       "type": "stat",
-      "title": "OOM kills in range",
+      "title": "OOM kills",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -339,6 +320,7 @@
         "graphMode": "none",
         "textMode": "auto"
       },
+      "description": "Kills for memory in the selected range.",
       "gridPos": {
         "x": 18,
         "y": 0,
@@ -349,7 +331,7 @@
     },
     {
       "type": "stat",
-      "title": "Failed tasks, 15 min",
+      "title": "Failed tasks 15m",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -400,6 +382,7 @@
         "graphMode": "none",
         "textMode": "auto"
       },
+      "description": "Failed tasks of the app in the last 15 minutes.",
       "gridPos": {
         "x": 0,
         "y": 5,
@@ -523,7 +506,7 @@
     },
     {
       "type": "stat",
-      "title": "GOMAXPROCS and GOGC",
+      "title": "Go settings",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -580,6 +563,7 @@
         "graphMode": "none",
         "textMode": "auto"
       },
+      "description": "GOMAXPROCS, the threads Go runs code on, and GOGC, the growth of the heap that starts a GC.",
       "gridPos": {
         "x": 18,
         "y": 5,

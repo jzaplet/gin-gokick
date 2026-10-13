@@ -540,7 +540,7 @@ Each tool is switched on by its ID in the environment and runs without Google Ta
 
 **Logs, traces and metrics.** Alloy sends the logs of every container to Loki with the stack and the service as labels, so the app needs no setup for them. The compose sends the traces and metrics to `http://otel:4318`, the OTLP receiver on `edge`, with the stack as `service.namespace`; the repository variable `OTEL_EXPORTER_OTLP_ENDPOINT` points them elsewhere.
 
-**Grafana.** `docs/grafana/` holds seven boards of a project, linked to each other and marked with every deploy:
+**Grafana.** `docs/grafana/` holds seven boards of a project in one folder, each marked with every deploy:
 
 | Board | Answers |
 | --- | --- |

@@ -13,25 +13,6 @@
     "to": "now"
   },
   "refresh": "30s",
-  "links": [
-    {
-      "title": "<domain>",
-      "type": "dashboards",
-      "tags": [
-        "<projectname>"
-      ],
-      "asDropdown": false,
-      "includeVars": true,
-      "keepTime": true
-    },
-    {
-      "title": "GlitchTip",
-      "type": "link",
-      "url": "<glitchtip>/<glitchtip-org>/issues",
-      "targetBlank": true,
-      "icon": "bolt"
-    }
-  ],
   "annotations": {
     "list": [
       {
@@ -107,7 +88,7 @@
   "panels": [
     {
       "type": "stat",
-      "title": "Queries per second",
+      "title": "Queries/s",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -163,7 +144,7 @@
     },
     {
       "type": "stat",
-      "title": "p95 query time",
+      "title": "p95 query",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -219,7 +200,7 @@
     },
     {
       "type": "stat",
-      "title": "Failed queries per second",
+      "title": "Failed queries/s",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -525,7 +506,7 @@
     },
     {
       "type": "stat",
-      "title": "Age of the WAL archive",
+      "title": "WAL archive age",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
