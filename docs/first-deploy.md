@@ -254,7 +254,7 @@ To switch them on, set the variable `POSTGRES_IMAGE` to the PostgreSQL image wit
 
 ## 6. Grafana
 
-[grafana/](grafana/) holds the six boards of a project, which [README](README.md#production) describes. They have placeholders instead of the project:
+[grafana/](grafana/) holds the seven boards of a project, which [README](README.md#production) describes. They have placeholders instead of the project:
 - `<projectname>` in the `uid`, in the tag that links the boards to each other, and in the names of the GlitchTip projects;
 - `<stack>` in the default of the variable `project`, which picks the stack in Prometheus, Loki and Tempo;
 - `<domain>` in the titles and in the variable `domain`, which picks the site in the metrics of Caddy;
@@ -263,7 +263,7 @@ To switch them on, set the variable `POSTGRES_IMAGE` to the PostgreSQL image wit
 **What the boards need from `<infra-repo>`**, besides the metrics, logs and traces of the app:
 - Prometheus with `--query.lookback-delta=2m` and its Grafana datasource with `timeInterval: 30s`. Series pushed over OTLP get no staleness marker, so the lookback drops a stopped replica after 4 pushes, and `$__rate_interval` spans at least 4 of them.
 - Prometheus with `--enable-feature=exemplar-storage`, and the datasource with an `exemplarTraceIdDestinations` named `trace_id` that leads to Tempo.
-- A blackbox probe of `http://<stack>_app:8020/readyz` with the label `probe="<stack>"`.
+- A blackbox probe of `http://<stack>_app:8020/readyz` with the label `probe="<stack>"` every 30 s, the interval the board Overview counts the downtime by.
 - A scrape of `<stack>_db-exporter:9187` on `edge` with the labels `service_namespace="<stack>"` and `service_name="<stack>_db"`.
 - cAdvisor with `service_namespace` and `service_name` on the containers, the metrics `swarm_service_*` by `service_name`, which mark the deploys too, and `pgbackrest_last_backup_timestamp_seconds` and `pgbackrest_last_archive_timestamp_seconds` by `path="/<stack>/db"`.
 - The metrics of Caddy by `host`, and `glitchtip_unresolved_issues` and `glitchtip_issues_total` by `project` from GlitchTip.
@@ -282,7 +282,7 @@ for board in docs/grafana/*.json; do
 done
 ```
 
-Every `grep -c` must print 0. A Grafana that loads its dashboards from the files of `<infra-repo>` takes the six filled files there instead, in one folder of the project.
+Every `grep -c` must print 0. A Grafana that loads its dashboards from the files of `<infra-repo>` takes the seven filled files there instead, in one folder of the project.
 
 ## 7. Verification
 

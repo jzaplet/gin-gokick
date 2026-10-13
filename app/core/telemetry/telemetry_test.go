@@ -136,7 +136,7 @@ func TestMetricsCountRequestsByTheirRoutePattern(t *testing.T) {
 		}
 	}
 
-	for _, runtime := range []string{"go.goroutine.count", "go.memory.used", "go.schedule.duration"} {
+	for _, runtime := range []string{"go.goroutine.count", "go.memory.used", "go.schedule.duration", "go.gc.cycles", "go.gc.cpu_time", "go.gc.pause.cpu_time"} {
 		if slices.Contains(names, runtime) == false {
 			t.Errorf("%s is missing from %v", runtime, names)
 		}

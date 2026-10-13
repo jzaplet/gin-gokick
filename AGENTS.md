@@ -289,7 +289,7 @@ Three behaviours of the templates catch people out:
 1. Add a constant `Event<What> business.Event = "<domain>.<what>"` to the file of the handler that sees it happen, or of the core package (`mail.EventSent`).
 2. Give the handler `events *business.Recorder` from `routes.go` and call `events.Record(c.Request.Context(), EventX)` once the step has happened, never before the step that can still fail.
 3. Test it in the test of its route through `routertest.WithLogs` and `testkit.RecordedEvents`, beside its other outcomes (`TestLoginRecordsItsOutcome`).
-4. The Overview board draws every event already. A stat panel of its own goes into `docs/grafana/overview.json`, next to the others in the row Business.
+4. The board Business draws every event already. A stat panel of its own goes into `docs/grafana/business.json`, next to the others.
 
 ### A mail
 1. Write `views/mail/<name>.html`. It calls no layout and defines the block `subject`.

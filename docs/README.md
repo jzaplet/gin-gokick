@@ -64,7 +64,7 @@ go run ./app            # in a second terminal: http://localhost:8020
 | `tools/` | `tsgen` and `i18n` with their shared `codegen`, `codestyle`, the ESLint plugin `codestyle` in `tools/eslint`, and sqlc pinned in its own module |
 | `tests/` | the Vitest tests of the frontend and of the ESLint plugin |
 | `docker/` | the production Dockerfile, the compose of the production Swarm stack and the script that creates the database role |
-| `docs/` | this document, the [first deploy](first-deploy.md) and six Grafana boards in `grafana/` |
+| `docs/` | this document, the [first deploy](first-deploy.md) and seven Grafana boards in `grafana/` |
 
 `views/`, `public/` and `migrations/` are embedded into the binary, and `locale/` is compiled into it. `app/main.go` stays under `app/`, because Go lets only packages under `app/` import `app/internal`.
 
@@ -473,6 +473,7 @@ It also writes a sample of numbers to `tests/assets/i18n/numbers`, against which
 | `db.client.operation.duration`, `db.client.operation.errors` | histogram, counter | `pgx.operation.type` (`query`, `acquire`, `connect`), and for a query `db.operation.name`, the name of its span |
 | `pgxpool.*` | gauges and counters | connections of the pool: idle, acquired, total, and the waits for one |
 | `go.*` | runtime of Go | memory, goroutines, the goal of the GC, the processors, and `go.schedule.duration`, how long a goroutine waited for a thread |
+| `go.gc.cycles`, `go.gc.cpu_time`, `go.gc.pause.cpu_time` | counters | GC cycles, the CPU time of the GC, and its pauses times GOMAXPROCS, read from `runtime/metrics`, which the runtime instrumentation of OpenTelemetry leaves out |
 | `business.events` | counter | `event`, the name of a business event |
 | `auth.sessions.active` | gauge | sessions that have not expired, the same number from every instance |
 
@@ -495,7 +496,7 @@ It also writes a sample of numbers to `tests/assets/i18n/numbers`, against which
   | `mail.sent`, `mail.failed` | the mailer handed a mail to its sender, or failed to render or send it, with its template in `mail` |
 
   `mail.sent` counts a mail the mailer gave to the sender, also with `SMTP_ENABLED=false`, when the sender drops it.
-- The board Overview draws every event, so a new one shows there without a change of the board.
+- The board Business draws every event, so a new one shows there without a change of the board.
 
 **Health.** `/readyz` checks the database within 2 s and answers 200, or 503 with the state of each check without the error text.
 
@@ -539,18 +540,19 @@ Each tool is switched on by its ID in the environment and runs without Google Ta
 
 **Logs, traces and metrics.** Alloy sends the logs of every container to Loki with the stack and the service as labels, so the app needs no setup for them. The compose sends the traces and metrics to `http://otel:4318`, the OTLP receiver on `edge`, with the stack as `service.namespace`; the repository variable `OTEL_EXPORTER_OTLP_ENDPOINT` points them elsewhere.
 
-**Grafana.** `docs/grafana/` holds six boards of a project, linked to each other and marked with every deploy:
+**Grafana.** `docs/grafana/` holds seven boards of a project, linked to each other and marked with every deploy:
 
 | Board | Answers |
 | --- | --- |
-| `overview.json` | Is it fine? Availability and duration of the probe of `/readyz`, replicas, the last deploy, the backups, requests, 5xx and p95 of the app and of the edge, error lines, issues of GlitchTip, business events and the SLO |
+| `overview.json` | Is it fine? Availability of `/readyz`, missing replicas, the last deploy, the backup, requests, 5xx and p95 of the app and of the edge, error lines, unresolved issues of GlitchTip and the SLO |
+| `business.json` | Sign-ins and their failures, active sessions, registrations, limited attempts, mails, every business event per minute and their log lines |
 | `http.json` | Requests by route and status, p50, p95 and p99 with exemplars, the slowest routes, requests in progress, the time at the edge and the slow requests from Tempo |
 | `database.json` | Queries by name, their p95 and failures, the slow queries from Tempo, the pool, the statistics of PostgreSQL, the container of the database and the backups |
-| `runtime.json` | CPU and memory against the limit, OOM kills and failed tasks, the memory of Go, allocations, goroutines, the scheduler, threads and file descriptors |
-| `logs.json` | Lines by level, the most frequent errors, 4xx and 5xx by path, business events and the logs of the other services of the stack |
+| `runtime.json` | CPU and memory against the limit, OOM kills and failed tasks, the memory of Go, allocations, the GC and its pauses, goroutines, the scheduler, threads and file descriptors |
+| `logs.json` | Error and warning lines, 5xx and new issues of GlitchTip, the most frequent errors, 4xx and 5xx by path and the logs of the other services of the stack |
 | `traces.json` | The service map, the span metrics of Tempo, outgoing HTTP by host, and the slowest and failed traces |
 
-- **The SLO.** 99.9 % of the probes of `/readyz` pass and 99 % of the requests other than `/readyz` and `/ping` take under 500 ms, both over 30 days. The board shows what is left of each budget and its burn rate over 1 h and 6 h; a burn rate of 1 spends the budget in exactly 30 days.
+- **The SLO.** 99.9 % of the probes of `/readyz` pass and 99 % of the requests other than `/readyz` and `/ping` take under 500 ms, both over 30 days. The availability budget is 43.2 minutes of downtime, counted as failed probes times their interval of 30 s; the latency budget is 1 % of the requests. The board shows what is left of each and their burn rate over 1 h and 6 h; a burn rate of 1 spends the budget in exactly 30 days.
 - [first-deploy.md](first-deploy.md) says what the boards need from the platform and how to load them.
 
 **The first deploy.** [first-deploy.md](first-deploy.md) walks through it: Cloudflare and Caddy, GlitchTip, the workflows with their variables and secrets, the deploy, backups, Grafana and the checks.

@@ -45,5 +45,9 @@ func metering(cfg Config, described *resource.Resource, logger *slog.Logger) *sd
 		logger.LogAttrs(context.Background(), slog.LevelWarn, "opentelemetry failed", logging.Err(err))
 	}
 
+	if err := observeGC(provider); err != nil {
+		logger.LogAttrs(context.Background(), slog.LevelWarn, "opentelemetry failed", logging.Err(err))
+	}
+
 	return provider
 }

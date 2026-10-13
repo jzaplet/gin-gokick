@@ -156,8 +156,8 @@
       "gridPos": {
         "x": 0,
         "y": 0,
-        "w": 3,
-        "h": 4
+        "w": 6,
+        "h": 5
       },
       "id": 1
     },
@@ -210,10 +210,10 @@
         "textMode": "auto"
       },
       "gridPos": {
-        "x": 3,
+        "x": 6,
         "y": 0,
-        "w": 3,
-        "h": 4
+        "w": 6,
+        "h": 5
       },
       "id": 2
     },
@@ -270,10 +270,10 @@
         "textMode": "auto"
       },
       "gridPos": {
-        "x": 6,
+        "x": 12,
         "y": 0,
-        "w": 3,
-        "h": 4
+        "w": 6,
+        "h": 5
       },
       "id": 3
     },
@@ -290,34 +290,31 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(pgxpool_acquired_connections{service_namespace=\"$project\"})",
-          "legendFormat": "in use",
+          "expr": "sum(pgxpool_acquired_connections{service_namespace=\"$project\"}) / sum(pgxpool_max_connections{service_namespace=\"$project\"})",
+          "legendFormat": "",
           "range": true,
           "instant": false,
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "sum(pgxpool_max_connections{service_namespace=\"$project\"})",
-          "legendFormat": "max",
-          "range": true,
-          "instant": false,
-          "refId": "B"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "none",
+          "unit": "percentunit",
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "text",
+                "color": "green",
                 "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.7
+              },
+              {
+                "color": "red",
+                "value": 0.9
               }
             ]
           }
@@ -332,15 +329,16 @@
           "fields": "",
           "values": false
         },
-        "colorMode": "none",
-        "graphMode": "none",
+        "colorMode": "value",
+        "graphMode": "area",
         "textMode": "auto"
       },
+      "description": "Connections in use of the maximum of the pool.",
       "gridPos": {
-        "x": 9,
+        "x": 18,
         "y": 0,
-        "w": 3,
-        "h": 4
+        "w": 6,
+        "h": 5
       },
       "id": 4
     },
@@ -396,11 +394,12 @@
         "graphMode": "none",
         "textMode": "auto"
       },
+      "description": "1 when the exporter reaches the database.",
       "gridPos": {
-        "x": 12,
-        "y": 0,
-        "w": 3,
-        "h": 4
+        "x": 0,
+        "y": 5,
+        "w": 6,
+        "h": 5
       },
       "id": 5
     },
@@ -453,10 +452,10 @@
         "textMode": "auto"
       },
       "gridPos": {
-        "x": 15,
-        "y": 0,
-        "w": 3,
-        "h": 4
+        "x": 6,
+        "y": 5,
+        "w": 6,
+        "h": 5
       },
       "id": 6
     },
@@ -517,16 +516,16 @@
         "textMode": "auto"
       },
       "gridPos": {
-        "x": 18,
-        "y": 0,
-        "w": 3,
-        "h": 4
+        "x": 12,
+        "y": 5,
+        "w": 6,
+        "h": 5
       },
       "id": 7
     },
     {
       "type": "stat",
-      "title": "Age of the backup",
+      "title": "Age of the WAL archive",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -537,7 +536,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "time() - max(pgbackrest_last_backup_timestamp_seconds{path=\"/$project/db\"})",
+          "expr": "time() - max(pgbackrest_last_archive_timestamp_seconds{path=\"/$project/db\"})",
           "legendFormat": "",
           "range": true,
           "instant": false,
@@ -557,11 +556,11 @@
               },
               {
                 "color": "orange",
-                "value": 93600
+                "value": 3600
               },
               {
                 "color": "red",
-                "value": 172800
+                "value": 5400
               }
             ]
           }
@@ -580,11 +579,12 @@
         "graphMode": "none",
         "textMode": "auto"
       },
+      "description": "Empty when the database runs without pgBackRest.",
       "gridPos": {
-        "x": 21,
-        "y": 0,
-        "w": 3,
-        "h": 4
+        "x": 18,
+        "y": 5,
+        "w": 6,
+        "h": 5
       },
       "id": 8
     },
@@ -595,7 +595,7 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 4,
+        "y": 10,
         "w": 24,
         "h": 1
       },
@@ -652,7 +652,7 @@
       "description": "sqlc names a query by its -- name: line, other SQL by its first word.",
       "gridPos": {
         "x": 0,
-        "y": 5,
+        "y": 11,
         "w": 12,
         "h": 8
       },
@@ -709,7 +709,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 5,
+        "y": 11,
         "w": 12,
         "h": 8
       },
@@ -805,7 +805,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 13,
+        "y": 19,
         "w": 12,
         "h": 8
       },
@@ -861,7 +861,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 13,
+        "y": 19,
         "w": 12,
         "h": 8
       },
@@ -901,7 +901,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 21,
+        "y": 27,
         "w": 24,
         "h": 10
       },
@@ -914,7 +914,7 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 31,
+        "y": 37,
         "w": 24,
         "h": 1
       },
@@ -1003,7 +1003,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 32,
+        "y": 38,
         "w": 8,
         "h": 8
       },
@@ -1082,7 +1082,7 @@
       "description": "A wait means every connection of the pool was in use.",
       "gridPos": {
         "x": 8,
-        "y": 32,
+        "y": 38,
         "w": 8,
         "h": 8
       },
@@ -1160,7 +1160,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 32,
+        "y": 38,
         "w": 8,
         "h": 8
       },
@@ -1173,7 +1173,7 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 40,
+        "y": 46,
         "w": 24,
         "h": 1
       },
@@ -1240,7 +1240,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 41,
+        "y": 47,
         "w": 8,
         "h": 8
       },
@@ -1307,7 +1307,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 41,
+        "y": 47,
         "w": 8,
         "h": 8
       },
@@ -1362,7 +1362,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 41,
+        "y": 47,
         "w": 8,
         "h": 8
       },
@@ -1418,7 +1418,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 49,
+        "y": 55,
         "w": 8,
         "h": 8
       },
@@ -1485,7 +1485,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 49,
+        "y": 55,
         "w": 8,
         "h": 8
       },
@@ -1552,7 +1552,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 49,
+        "y": 55,
         "w": 8,
         "h": 8
       },
@@ -1650,7 +1650,7 @@
       "description": "From pg_stat_statements, which also counts what the app does not run, like the exporter and the backups. The text is normalized by PostgreSQL and cut to 120 characters.",
       "gridPos": {
         "x": 0,
-        "y": 57,
+        "y": 63,
         "w": 16,
         "h": 8
       },
@@ -1705,7 +1705,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 57,
+        "y": 63,
         "w": 8,
         "h": 8
       },
@@ -1718,7 +1718,7 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 65,
+        "y": 71,
         "w": 24,
         "h": 1
       },
@@ -1774,7 +1774,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 66,
+        "y": 72,
         "w": 8,
         "h": 8
       },
@@ -1841,7 +1841,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 66,
+        "y": 72,
         "w": 8,
         "h": 8
       },
@@ -1908,7 +1908,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 66,
+        "y": 72,
         "w": 8,
         "h": 8
       },

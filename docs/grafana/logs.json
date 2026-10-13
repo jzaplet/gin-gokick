@@ -106,6 +106,246 @@
   },
   "panels": [
     {
+      "type": "stat",
+      "title": "Error lines in range",
+      "datasource": {
+        "type": "loki",
+        "uid": "${logs}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${logs}"
+          },
+          "expr": "sum(count_over_time({service_namespace=\"$project\", service_name=\"${project}_app\"} | detected_level=\"error\" [$__range]))",
+          "queryType": "instant",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "id": 1
+    },
+    {
+      "type": "stat",
+      "title": "Warning lines in range",
+      "datasource": {
+        "type": "loki",
+        "uid": "${logs}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${logs}"
+          },
+          "expr": "sum(count_over_time({service_namespace=\"$project\", service_name=\"${project}_app\"} | detected_level=\"warn\" [$__range]))",
+          "queryType": "instant",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "id": 2
+    },
+    {
+      "type": "stat",
+      "title": "5xx in range",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "round(sum(increase(http_server_request_duration_seconds_count{service_namespace=\"$project\",http_response_status_code=~\"5..\"}[$__range]))) or vector(0)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "id": 3
+    },
+    {
+      "type": "stat",
+      "title": "New GlitchTip issues in range",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "round(sum(increase(glitchtip_issues_total{project=~\"<projectname>-.+\"}[$__range]))) or vector(0)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "id": 4
+    },
+    {
       "type": "timeseries",
       "title": "Log lines by level",
       "datasource": {
@@ -158,11 +398,11 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 0,
+        "y": 5,
         "w": 24,
         "h": 8
       },
-      "id": 1
+      "id": 5
     },
     {
       "type": "table",
@@ -220,11 +460,11 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 8,
+        "y": 13,
         "w": 12,
         "h": 8
       },
-      "id": 2
+      "id": 6
     },
     {
       "type": "timeseries",
@@ -275,11 +515,11 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 8,
+        "y": 13,
         "w": 12,
         "h": 8
       },
-      "id": 3
+      "id": 7
     },
     {
       "type": "logs",
@@ -309,45 +549,11 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 16,
+        "y": 21,
         "w": 24,
         "h": 10
       },
-      "id": 4
-    },
-    {
-      "type": "logs",
-      "title": "Business events",
-      "datasource": {
-        "type": "loki",
-        "uid": "${logs}"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "${logs}"
-          },
-          "expr": "{service_namespace=\"$project\", service_name=\"${project}_app\"} | json msg | msg=\"business event\"",
-          "queryType": "range",
-          "refId": "A"
-        }
-      ],
-      "options": {
-        "showTime": true,
-        "wrapLogMessage": true,
-        "prettifyLogMessage": false,
-        "enableLogDetails": true,
-        "dedupStrategy": "none",
-        "sortOrder": "Descending"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 26,
-        "w": 12,
-        "h": 10
-      },
-      "id": 5
+      "id": 8
     },
     {
       "type": "logs",
@@ -376,12 +582,12 @@
         "sortOrder": "Descending"
       },
       "gridPos": {
-        "x": 12,
-        "y": 26,
-        "w": 12,
+        "x": 0,
+        "y": 31,
+        "w": 24,
         "h": 10
       },
-      "id": 6
+      "id": 9
     },
     {
       "type": "logs",
@@ -411,11 +617,11 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 36,
+        "y": 41,
         "w": 24,
         "h": 12
       },
-      "id": 7
+      "id": 10
     }
   ]
 }
