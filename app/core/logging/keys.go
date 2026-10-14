@@ -31,3 +31,7 @@ const KeyAddr = "addr"
 const KeyDetail = "detail"
 
 const KeyMigration = "migration"
+
+const KeyEvent = "event"
+
+const KeyMail = "mail"

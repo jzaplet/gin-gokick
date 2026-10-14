@@ -55,7 +55,7 @@ func TestSendSamplesToMailpit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mailer := mail.NewMailer(renderer, sender, site.URL)
+	mailer := mail.NewMailer(renderer, sender, site.URL, testkit.Events(testkit.DiscardLogs()))
 
 	for _, l := range locales.Locales() {
 		if err := usermail.Welcome(t.Context(), mailer, l, "jan@example.com"); err != nil {

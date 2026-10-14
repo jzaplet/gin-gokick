@@ -15,6 +15,7 @@ import (
 	"gokick/app/core/mail"
 	"gokick/app/core/reporting"
 	"gokick/app/core/telemetry"
+	"gokick/app/internal/auth/session"
 	"gokick/app/internal/shared/config"
 	"gokick/app/internal/shared/router"
 	dictionaries "gokick/locale"
@@ -97,6 +98,9 @@ func run() int {
 	defer pool.Close()
 
 	tel.ObservePool(pool)
+
+	stopSessions := tel.Gauge("auth.sessions.active", "Sessions that have not expired.", session.New(pool).Active)
+	defer stopSessions()
 
 	if err = database.Migrate(ctx, pool, migrations.FS, logger); err != nil {
 		logger.ErrorContext(ctx, "cannot migrate the database", logging.Err(err))

@@ -123,7 +123,7 @@ func TestFailedNeedsTheMiddleware(t *testing.T) {
 func serve(t *testing.T, failures *store, ip string, handler gin.HandlerFunc) *httptest.ResponseRecorder {
 	t.Helper()
 	engine := newEngine(t)
-	engine.Group("", api.InternalErrors()).GET("/attempt", ratelimit.Middleware(failures, 10, window), handler)
+	engine.Group("", api.InternalErrors()).GET("/attempt", ratelimit.Middleware(failures, 10, window, testkit.Events(testkit.DiscardLogs())), handler)
 
 	req := testkit.Request(t, http.MethodGet, "/attempt")
 	req.Header.Set("CF-Connecting-IP", ip)

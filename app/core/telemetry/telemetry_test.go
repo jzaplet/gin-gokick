@@ -2,6 +2,8 @@ package telemetry_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -10,9 +12,11 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"gokick/app/core/database"
 	"gokick/app/core/httpserver"
@@ -134,10 +138,14 @@ func TestMetricsCountRequestsByTheirRoutePattern(t *testing.T) {
 		}
 	}
 
-	for _, runtime := range []string{"go.goroutine.count", "go.memory.used"} {
+	for _, runtime := range []string{"go.goroutine.count", "go.memory.used", "go.schedule.duration", "go.gc.cycles", "go.gc.cpu_time", "go.gc.pause.cpu_time"} {
 		if slices.Contains(names, runtime) == false {
 			t.Errorf("%s is missing from %v", runtime, names)
 		}
+	}
+
+	if active := collector.Latest("http.server.active_requests"); len(active) != 1 || active[0].Value != 0 {
+		t.Errorf("active requests after the requests ended %+v", active)
 	}
 }
 
@@ -183,7 +191,7 @@ func TestShutdownSendsTheMetricsWhileTheTracesHang(t *testing.T) {
 	}
 }
 
-func TestPoolAndQueryMetricsAreSent(t *testing.T) {
+func TestQueriesAreNamedByTheFunctionThatRunsThem(t *testing.T) {
 	collector := testkit.Collector(t)
 	tel := start(t, collector.URL, testkit.DiscardLogs())
 
@@ -195,17 +203,70 @@ func TestPoolAndQueryMetricsAreSent(t *testing.T) {
 	t.Cleanup(pool.Close)
 	tel.ObservePool(pool)
 
-	if _, err := pool.Exec(t.Context(), "SELECT 1"); err != nil {
+	if err := database.Migrate(t.Context(), pool, fstest.MapFS{"20260101000000_create_notes.sql": {Data: []byte("-- +goose Up\nCREATE TABLE notes (id int);\n\n-- +goose Down\nDROP TABLE notes;\n")}}, testkit.DiscardLogs()); err != nil {
 		t.Fatal(err)
 	}
 
+	router := newRouter(t, tel)
+	router.GET("/queries", func(c *gin.Context) {
+		if err := errors.Join((&notes{pool: pool}).Count(c.Request.Context()), (&tasks{pool: pool}).Count(c.Request.Context())); err != nil {
+			c.Status(http.StatusInternalServerError)
+
+			return
+		}
+
+		c.Status(http.StatusNoContent)
+	})
+
+	testkit.Serve(router, testkit.Request(t, http.MethodGet, "/queries"))
 	tel.Shutdown(5 * time.Second)
 
-	names := collector.Metrics()
-	for _, want := range []string{"pgxpool.total_connections", "db.client.operation.duration"} {
-		if slices.Contains(names, want) == false {
-			t.Errorf("%s is missing from %v", want, names)
+	var spans []string
+	for _, span := range collector.Spans() {
+		spans = append(spans, span.Name)
+	}
+
+	operations := map[string]bool{}
+	for _, point := range collector.Latest("db.client.operation.duration") {
+		operations[point.Attributes["db.operation.name"]] = true
+	}
+
+	for _, name := range []string{"app/core/telemetry_test.(*notes).Count", "app/core/telemetry_test.(*tasks).Count"} {
+		if slices.Contains(spans, name) == false || operations[name] == false {
+			t.Errorf("%s: spans %v, operations %v", name, spans, operations)
 		}
+	}
+
+	if operations["app/core/database.Migrate"] == false {
+		t.Errorf("the migration is missing from %v", operations)
+	}
+
+	for name := range operations {
+		if name != "" && strings.HasPrefix(name, "app/") == false {
+			t.Errorf("%s is not named by the function that ran it", name)
+		}
+	}
+
+	if slices.Contains(collector.Metrics(), "pgxpool.total_connections") == false {
+		t.Errorf("pool metrics are missing from %v", collector.Metrics())
+	}
+}
+
+func TestAFailingGaugeReachesTheLogAndStopsNoOtherMetric(t *testing.T) {
+	collector := testkit.Collector(t)
+	logger, logs := testkit.CaptureLogs()
+	tel := start(t, collector.URL, logger)
+
+	_ = tel.Gauge("notes.open", "Open notes.", func(context.Context) (int64, error) { return 7, nil })
+	_ = tel.Gauge("notes.archived", "Archived notes.", func(context.Context) (int64, error) { return 0, errors.New("notes are gone") })
+	tel.Shutdown(5 * time.Second)
+
+	if open := collector.Latest("notes.open"); len(open) != 1 || open[0].Value != 7 {
+		t.Errorf("open notes %+v", open)
+	}
+
+	if entries := testkit.LogEntries(t, logs); len(entries) != 1 || entries[0]["level"] != "WARN" || strings.Contains(fmt.Sprint(entries[0]["error"]), "notes.archived: notes are gone") == false {
+		t.Errorf("log %v", entries)
 	}
 }
 
@@ -357,6 +418,26 @@ func TestExportFailuresReachTheLog(t *testing.T) {
 	if len(entries) == 0 || entries[0]["level"] != "WARN" || entries[0]["error"] == nil {
 		t.Errorf("log %v", entries)
 	}
+}
+
+type notes struct {
+	pool *pgxpool.Pool
+}
+
+func (n *notes) Count(ctx context.Context) error {
+	_, err := n.pool.Exec(ctx, "SELECT count(*) FROM notes")
+
+	return err
+}
+
+type tasks struct {
+	pool *pgxpool.Pool
+}
+
+func (t *tasks) Count(ctx context.Context) error {
+	_, err := t.pool.Exec(ctx, "SELECT 1")
+
+	return err
 }
 
 func start(t *testing.T, endpoint string, logger *slog.Logger) *telemetry.Telemetry {

@@ -1,6 +1,6 @@
 # First deploy
 
-This guide deploys a new project from this skeleton to a Docker Swarm: Cloudflare, GlitchTip, GitHub Actions with shared workflows, PostgreSQL in the stack, Prometheus, Loki and Grafana. The Swarm with its reverse proxy Caddy, Prometheus, Loki with Alloy and Grafana already run, and an infra repository describes them; the guide only adds the project to them. A person can follow it by hand, or Claude reads it and does most steps itself through `gh`, the APIs and the infra repository. Skills with a map of the infrastructure or a password manager speed the work up, but the guide doesn't depend on them.
+This guide deploys a new project from this skeleton to a Docker Swarm: Cloudflare, GlitchTip, GitHub Actions with shared workflows, PostgreSQL in the stack, Prometheus, Loki, Tempo and Grafana. The Swarm with its reverse proxy Caddy, Prometheus, Loki and Tempo with Alloy and Grafana already run, and an infra repository describes them; the guide only adds the project to them. A person can follow it by hand, or Claude reads it and does most steps itself through `gh`, the APIs and the infra repository. Skills with a map of the infrastructure or a password manager speed the work up, but the guide doesn't depend on them.
 
 ## For Claude
 
@@ -50,10 +50,10 @@ This guide deploys a new project from this skeleton to a Docker Swarm: Cloudflar
 - **What the compose gets:** `IMAGE`, `VERSION` (the commit), `STACK`, `ROLE` (the services run on the nodes with `node.labels.role == ${ROLE}`, by default `app`), and every repository variable and secret by its name for `${…}`. A value written into `environment` shows in `docker service inspect`, so only configuration goes there.
 - **Secrets.** A top-level secret with `x-environment: <NAME>` becomes a Docker secret with the value of the repository secret `<NAME>`. Its name carries a hash of the value, so a new value deploys as a new secret.
   - `x-optional: true` beside it leaves the secret out when the repository lacks it, and the variable stays unset.
-  - The entrypoint of `app` exports every file of `/run/secrets` as a variable of its name and then starts the app, so the app needs no `_FILE` support. `db` reads its passwords through `POSTGRES_PASSWORD_FILE` and `DB_PASSWORD_FILE`, which the PostgreSQL image and `app-role.sh` support.
+  - The entrypoint of `app` exports every file of `/run/secrets` as a variable of its name and then starts the app, so the app needs no `_FILE` support. `db` reads its passwords through `POSTGRES_PASSWORD_FILE`, `DB_PASSWORD_FILE` and `DB_MONITORING_PASSWORD_FILE`, which the PostgreSQL image and the scripts of `docker/postgres` support, and `db-exporter` through `DATA_SOURCE_PASS_FILE`.
   - The deploy refuses a stack in whose rendered compose the value of any repository secret appears. The compose therefore interpolates only repository variables, and `GLITCHTIP_DSN` or `SMTP_USERNAME` are never secrets.
 - **A broken version.** The app updates `start-first` with `failure_action: rollback`. When the new version doesn't start or doesn't pass the healthcheck of the image on `/readyz`, Swarm brings the previous version back and the run fails. The database updates `stop-first`, since two PostgreSQL can't share one volume, and a new app waits up to a minute for it.
-- **The database role.** The first start of `db` on an empty volume runs `docker/postgres/initdb/app-role.sh`, which creates the role `DB_USERNAME` with `DB_PASSWORD` and the database `DB_NAME`.
+- **The database roles.** The first start of `db` on an empty volume runs `docker/postgres/initdb/app-role.sh`, which creates the role `DB_USERNAME` with `DB_PASSWORD` and the database `DB_NAME`. Then `docker/postgres/monitoring-role.sh` creates the role `monitoring` with `DB_MONITORING_PASSWORD` and `pg_monitor`, and the extension `pg_stat_statements` in `DB_NAME`, for `db-exporter`.
 - **Logs** need no step. Alloy of the infra sends the stdout of every container to Loki with the labels `service_namespace` (the stack) and `service_name` (the name of the Swarm service, `<stack>_<service>`), so the app logs under `{service_namespace="<stack>", service_name="<stack>_app"}`.
 - **Traces and metrics** need no step either, when `<infra-repo>` runs an OTLP receiver named `otel` on `edge` that passes metrics to Prometheus. The compose sends both there with `service.namespace=<stack>` and the name of the Swarm service, `<stack>_app`, as `service.name`, so traces, metrics and logs share one name. Tempo finds a trace by the `X-Trace-Id` of any response, and Prometheus labels the metrics `service_namespace="<stack>"`. The repository variable `OTEL_EXPORTER_OTLP_ENDPOINT` points them to another receiver, `OTEL_TRACES_SAMPLER_ARG` sends only a share of the traces, and the optional secret `OTEL_EXPORTER_OTLP_HEADERS` carries its key.
 
@@ -192,11 +192,12 @@ Compared with Sentry, GlitchTip loads no source code from GitHub and links no co
    ```
 
    Mails stay off until `SMTP_ENABLED=true` with `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME` and `SMTP_SENDER_EMAIL`. The measurement tools turn on with their IDs.
-3. **The secrets.** The compose mounts `DB_PASSWORD` into the app and the database and `POSTGRES_PASSWORD` into the database, and both are required. `SMTP_PASSWORD` and `OTEL_EXPORTER_OTLP_HEADERS` are optional. None of them is ever a variable. `GLITCHTIP_AUTH_TOKEN` from manual item 2 goes only to Build; with it, every build uploads the source maps, and a failed upload fails the build.
+3. **The secrets.** The compose mounts `DB_PASSWORD` into the app and the database, `POSTGRES_PASSWORD` into the database and `DB_MONITORING_PASSWORD` into the database and its exporter, and all three are required. `SMTP_PASSWORD` and `OTEL_EXPORTER_OTLP_HEADERS` are optional. None of them is ever a variable. `GLITCHTIP_AUTH_TOKEN` from manual item 2 goes only to Build; with it, every build uploads the source maps, and a failed upload fails the build.
 
    ```bash
    openssl rand -hex 24 | tr -d '\n' | gh secret set DB_PASSWORD --repo <repo>
    openssl rand -hex 24 | tr -d '\n' | gh secret set POSTGRES_PASSWORD --repo <repo>
+   openssl rand -hex 24 | tr -d '\n' | gh secret set DB_MONITORING_PASSWORD --repo <repo>
    gh secret list --repo <repo> --json name --jq '.[].name'
    ```
 
@@ -230,11 +231,18 @@ Compared with Sentry, GlitchTip loads no source code from GitHub and links no co
    ```bash
    PW=$(openssl rand -hex 24)
    printf "ALTER ROLE \"<projectname>\" PASSWORD '%s';\n" "$PW" \
-     | ssh <db-server> 'docker exec -i $(docker ps -q -f name=<stack>_db | head -1) psql -v ON_ERROR_STOP=1 -U postgres -d postgres -f -' \
+     | ssh <db-server> 'docker exec -i $(docker ps -q -f label=com.docker.swarm.service.name=<stack>_db) psql -v ON_ERROR_STOP=1 -U postgres -d postgres -f -' \
      && printf '%s' "$PW" | gh secret set DB_PASSWORD --repo <repo>
    ```
 
    `POSTGRES_PASSWORD` counts only on an empty volume too. A new value of the secret restarts `db` on the next deploy and leaves the password of the superuser as it was.
+5. **A database from before the exporter.** A volume created by an older compose has neither the role `monitoring` nor `pg_stat_statements`, so `db-exporter` can't sign in. The deploy of this compose restarts `db` with the library loaded and without utility statements in it, so the password of the role never reaches the statistics. Then the script of the compose adds both, as the superuser over the socket of the container:
+
+   ```bash
+   ssh <db-server> 'docker exec $(docker ps -q -f label=com.docker.swarm.service.name=<stack>_db) /docker-entrypoint-initdb.d/monitoring-role.sh'
+   ```
+
+   It prints `CREATE ROLE`, `GRANT ROLE` and `CREATE EXTENSION`, and the exporter connects at its next scrape.
 
 ## 5. Backups
 
@@ -246,22 +254,33 @@ To switch them on, set the variable `POSTGRES_IMAGE` to the PostgreSQL image wit
 
 ## 6. Grafana
 
-[grafana-dashboard.json](grafana-dashboard.json) has placeholders instead of the project name:
-- `<projectname>` in the `uid` and in the tag in `tags`;
-- `<stack>` in the default of the variable `project`, which picks the stack in Prometheus and Loki;
-- `<domain>` in the `title`.
+[grafana/](grafana/) holds the seven boards of a project, which [README](README.md#production) describes. They have placeholders instead of the project:
+- `<projectname>` in the `uid`, in the tag, and in the names of the GlitchTip projects;
+- `<stack>` in the default of the variable `project`, which picks the stack in Prometheus, Loki and Tempo;
+- `<domain>` in the titles and in the variable `domain`, which picks the site in the metrics of Caddy.
 
-The metrics carry `service_namespace` from the OTLP export, and the row Logs reads Loki by `service_namespace` and `service_name="<stack>_app"`. The panels of CPU, container memory and the time since the last start read cAdvisor, which needs the same two labels on the containers. Series pushed over OTLP get no staleness marker, so the panels expect Prometheus with `--query.lookback-delta=2m`, which drops a stopped replica after 4 pushes, and its Grafana datasource with `timeInterval: 30s`, so `$__rate_interval` spans at least 4 pushes. The file in the repository stays as it is, and the import fills in the values. The `sed` patterns are written as `[<]…[>]`, so nobody mistakes them for placeholders of this guide.
+**What the boards need from `<infra-repo>`**, besides the metrics, logs and traces of the app:
+- Prometheus with `--query.lookback-delta=2m` and its Grafana datasource with `timeInterval: 30s`. Series pushed over OTLP get no staleness marker, so the lookback drops a stopped replica after 4 pushes, and `$__rate_interval` spans at least 4 of them.
+- Prometheus with `--enable-feature=exemplar-storage`, and the datasource with an `exemplarTraceIdDestinations` named `trace_id` that leads to Tempo.
+- A blackbox probe of `http://<stack>_app:8020/readyz` with the label `probe="<stack>"` every 30 s, the interval the board Overview counts the downtime by.
+- A scrape of `<stack>_db-exporter:9187` on `edge` with the labels `service_namespace="<stack>"` and `service_name="<stack>_db"`.
+- cAdvisor with `service_namespace` and `service_name` on the containers, the metrics `swarm_service_*` by `service_name`, which mark the deploys too, and `pgbackrest_last_backup_timestamp_seconds` and `pgbackrest_last_archive_timestamp_seconds` by `path="/<stack>/db"`.
+- The metrics of Caddy by `host`, and `glitchtip_unresolved_issues` and `glitchtip_issues_total` by `project` from GlitchTip.
+- Tempo with the processors `span-metrics` and `service-graphs`, which write to Prometheus, and the datasource uids `prometheus`, `loki` and `tempo` as the defaults of the variables.
+
+The files in the repository stay as they are, and the import fills in the values. The `sed` patterns are written as `[<]…[>]`, so nobody mistakes them for placeholders of this guide.
 
 ```bash
-dashboard=$(sed -e 's/[<]projectname[>]/<projectname>/g' -e 's/[<]stack[>]/<stack>/g' -e 's/[<]domain[>]/<domain>/g' docs/grafana-dashboard.json)
-grep -c '[<>]' <<<"$dashboard"
-jq '{dashboard: (. + {id: null}), overwrite: true, folderUid: ""}' <<<"$dashboard" \
-  | curl -sS --fail-with-body -X POST -H @<(printf 'Authorization: Bearer %s' "$GRAFANA_TOKEN") -H 'Content-Type: application/json' \
-      --data-binary @- <grafana>/api/dashboards/db | jq '{status, url}'
+for board in docs/grafana/*.json; do
+  dashboard=$(sed -e 's/[<]projectname[>]/<projectname>/g' -e 's/[<]stack[>]/<stack>/g' -e 's/[<]domain[>]/<domain>/g' "$board")
+  grep -cE '[<](projectname|stack|domain)[>]' <<<"$dashboard"
+  jq '{dashboard: (. + {id: null}), overwrite: true, folderUid: ""}' <<<"$dashboard" \
+    | curl -sS --fail-with-body -X POST -H @<(printf 'Authorization: Bearer %s' "$GRAFANA_TOKEN") -H 'Content-Type: application/json' \
+        --data-binary @- <grafana>/api/dashboards/db | jq -c '{status, url}'
+done
 ```
 
-`grep -c` must print 0. A Grafana that loads its dashboards from the files of `<infra-repo>` takes the filled file there instead.
+Every `grep -c` must print 0. A Grafana that loads its dashboards from the files of `<infra-repo>` takes the seven filled files there instead, in one folder of the project.
 
 ## 7. Verification
 
@@ -289,6 +308,14 @@ Claude checks these itself:
   curl -sS --fail-with-body -G -H @<(printf 'Authorization: Bearer %s' "$GRAFANA_TOKEN") \
     "<grafana>/api/datasources/proxy/uid/<loki-datasource>/loki/api/v1/query" \
     --data-urlencode 'query=sum(count_over_time({service_namespace="<stack>", service_name="<stack>_app"}[5m]))' | jq -r '.data.result[0].value[1]'
+  ```
+
+- The exporter reads PostgreSQL, so the query below prints 1:
+
+  ```bash
+  curl -sS --fail-with-body -G -H @<(printf 'Authorization: Bearer %s' "$GRAFANA_TOKEN") \
+    "<grafana>/api/datasources/proxy/uid/<prometheus-datasource>/api/v1/query" \
+    --data-urlencode 'query=min(pg_up{service_namespace="<stack>"})' | jq -r '.data.result[0].value[1]'
   ```
 
 - securityheaders.com and MDN Observatory show A+.
@@ -326,7 +353,7 @@ With the person's permission, because an issue is created and an email arrives:
   ```bash
   trace=$(openssl rand -hex 16)
   ssh <db-server> bash -s -- "$trace" <<'SH'
-  db=$(docker ps -qf name=<stack>_db | head -1); app=$(docker ps -qf name=<stack>_app | head -1)
+  db=$(docker ps -q -f label=com.docker.swarm.service.name=<stack>_db); app=$(docker ps -qf name=<stack>_app | head -1)
   trap 'docker exec "$db" psql -U postgres -qAt -c "ALTER ROLE \"<projectname>\" LOGIN"' EXIT
   docker exec "$db" psql -U postgres -qAt -v ON_ERROR_STOP=1 -c 'ALTER ROLE "<projectname>" NOLOGIN' \
     -c "SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '<projectname>'"

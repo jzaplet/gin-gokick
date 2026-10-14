@@ -112,6 +112,15 @@ func (s *Sessions) EndAllOthers(ctx context.Context, userID uuid.UUID, token str
 	return ended, nil
 }
 
+func (s *Sessions) Active(ctx context.Context) (int64, error) {
+	active, err := s.queries.CountActiveSessions(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("count the active sessions: %w", err)
+	}
+
+	return active, nil
+}
+
 func tokenHash(token string) []byte {
 	hash := sha256.Sum256([]byte(token))
 

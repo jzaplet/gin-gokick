@@ -110,11 +110,16 @@ docker build -f docker/production/Dockerfile . &&
   - An error the request survives goes to `reporting.Warning(c, err)`.
   - Every reported problem reaches the injected log and the span too, not only GlitchTip, so it shows where `GLITCHTIP_DSN` is empty. A new reporting path keeps that.
   - Log only through the injected `*slog.Logger` with a context (`InfoContext`, `LogAttrs`), with typed `slog.Attr` values and the key constants of `app/core/logging`.
+- **Business events.** What the business follows (a sign-in, a registration, a sent mail) goes to `events.Record(ctx, Event…)` of the `*business.Recorder` that `routes.go` passes on, never to a log line or a counter of its own. [Business events](docs/README.md#logs-traces-errors-and-metrics) says where it lands.
+  - The event is a constant of type `business.Event` beside its use (`EventLoginFailed` in `login.go`), named like a message key: `<domain>.<what>` in snake_case (`auth.login_failed`).
+  - An attribute takes a key constant of `app/core/logging` and never carries personal data. It reaches only the log; the metric counts by name.
 - **Traces.** Only `app/core/telemetry` imports OpenTelemetry (depguard). Everything else gets its instrumentation from there:
   - an HTTP client to another service takes `telemetry.Transport`, so its calls join the request's trace;
   - a route nobody needs in traces, like a health check, joins the list `tel.Middleware` gets in `router.go`;
+  - a query takes the name of the function of the app that runs it, so SQL runs in the function it belongs to, never through a shared helper, which would give every query the helper's name;
   - an attribute that can carry personal data joins `personal` in `app/core/telemetry`, which the export drops;
-  - a service that puts a secret into its URL, like the Telegram bot API, joins `secretInURL` there, whose URLs the export shortens to the origin.
+  - a service that puts a secret into its URL, like the Telegram bot API, joins `secretInURL` there, whose URLs the export shortens to the origin;
+  - a number the business follows over time, like the active sessions, becomes `tel.Gauge` in `main.go` beside `tel.ObservePool`, with a function of its domain package that counts it, and its stop is deferred after the pool closes.
 - **Undo.** When a later step of a handler fails, undo the earlier one through that domain's own function (`accounts.Delete` in `authhandler.Register`).
   - Run the undo on `context.WithoutCancel` with its own timeout.
   - Report both errors, the failed step first.
@@ -280,6 +285,12 @@ Three behaviours of the templates catch people out:
    - Its Go route applies the same filter with the same limit and query as the grid, so "all" means exactly what the grid shows.
    - The route never acts on rows the user can't select.
    - The screen asks through `ConfirmModal` first, and reports the count the server answers.
+
+### A business event
+1. Add a constant `Event<What> business.Event = "<domain>.<what>"` to the file of the handler that sees it happen, or of the core package (`mail.EventSent`).
+2. Give the handler `events *business.Recorder` from `routes.go` and call `events.Record(c.Request.Context(), EventX)` once the step has happened, never before the step that can still fail.
+3. Test it in the test of its route through `routertest.WithLogs` and `testkit.RecordedEvents`, beside its other outcomes (`TestLoginRecordsItsOutcome`).
+4. The board Business draws every event already. A stat panel of its own goes into `docs/grafana/business.json`, next to the others.
 
 ### A mail
 1. Write `views/mail/<name>.html`. It calls no layout and defines the block `subject`.

@@ -22,7 +22,7 @@ func TestWelcomeGreetsTheUserInTheirLanguage(t *testing.T) {
 		"en_US": {"en-US", "/en", "/en"},
 	} {
 		mailbox := testkit.Mailbox()
-		if err := usermail.Welcome(t.Context(), mail.NewMailer(renderer, mailbox, "https://gokick.dev"), locales.Nearest(name), "jan@example.com"); err != nil {
+		if err := usermail.Welcome(t.Context(), mail.NewMailer(renderer, mailbox, "https://gokick.dev", testkit.Events(testkit.DiscardLogs())), locales.Nearest(name), "jan@example.com"); err != nil {
 			t.Fatal(err)
 		}
 

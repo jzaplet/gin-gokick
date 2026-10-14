@@ -11,6 +11,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"gokick/app/core/business"
+	"gokick/app/core/telemetry"
 	"gokick/app/core/testkit/collector"
 	"gokick/app/core/testkit/dotenv"
 	"gokick/app/core/testkit/logs"
@@ -74,6 +76,16 @@ func LogEntries(tb testing.TB, buf *bytes.Buffer) []map[string]any {
 	tb.Helper()
 
 	return logs.Entries(tb, buf)
+}
+
+func Events(logger *slog.Logger) *business.Recorder {
+	return business.New(logger, telemetry.New(telemetry.Config{}, "", "", logs.Discard()))
+}
+
+func RecordedEvents(tb testing.TB, buf *bytes.Buffer) []string {
+	tb.Helper()
+
+	return logs.Events(tb, buf)
 }
 
 func Mailbox() *mailbox.Mailbox {

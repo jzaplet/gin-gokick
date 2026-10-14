@@ -40,8 +40,12 @@ func metering(cfg Config, described *resource.Resource, logger *slog.Logger) *sd
 		return sdkmetric.NewMeterProvider(options...)
 	}
 
-	provider := sdkmetric.NewMeterProvider(append(options, sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exporter, sdkmetric.WithInterval(metricsInterval))))...)
+	provider := sdkmetric.NewMeterProvider(append(options, sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exporter, sdkmetric.WithInterval(metricsInterval), sdkmetric.WithProducer(runtime.NewProducer()))))...)
 	if err := runtime.Start(runtime.WithMeterProvider(provider)); err != nil {
+		logger.LogAttrs(context.Background(), slog.LevelWarn, "opentelemetry failed", logging.Err(err))
+	}
+
+	if err := observeGC(provider); err != nil {
 		logger.LogAttrs(context.Background(), slog.LevelWarn, "opentelemetry failed", logging.Err(err))
 	}
 

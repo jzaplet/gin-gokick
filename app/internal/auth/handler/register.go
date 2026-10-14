@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"gokick/app/core/api"
+	"gokick/app/core/business"
 	"gokick/app/core/cookie"
 	"gokick/app/core/locale"
 	"gokick/app/core/mail"
@@ -24,6 +25,8 @@ import (
 
 const KeyEmailTaken api.Key = "user.email_taken"
 
+const EventRegistered business.Event = "auth.registered"
+
 const cleanupTimeout = 5 * time.Second
 
 //tsgen:assets/app/Auth/types/RegisterRequest.ts RegisterRequest request
@@ -35,7 +38,7 @@ type registerRequest struct {
 	Locale string `json:"locale" binding:"required,max=5"`
 }
 
-func Register(pool *pgxpool.Pool, locales *locale.Set, mailer *mail.Mailer) gin.HandlerFunc {
+func Register(pool *pgxpool.Pool, locales *locale.Set, mailer *mail.Mailer, events *business.Recorder) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req registerRequest
 		if api.Bind(c, &req) == false {
@@ -83,6 +86,7 @@ func Register(pool *pgxpool.Pool, locales *locale.Set, mailer *mail.Mailer) gin.
 		}
 
 		cookie.Set(c.Writer, session.CookieName, token, session.Lifetime)
+		events.Record(c.Request.Context(), EventRegistered)
 
 		if err := usermail.Welcome(c.Request.Context(), mailer, nearest, req.Email); err != nil {
 			reporting.Warning(c, err)

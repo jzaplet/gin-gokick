@@ -8,6 +8,7 @@ import (
 
 	"gokick/app/core/api"
 	"gokick/app/core/authn"
+	"gokick/app/core/business"
 	"gokick/app/core/health"
 	"gokick/app/core/locale"
 	"gokick/app/core/mail"
@@ -29,6 +30,7 @@ func routes(
 	renderer *view.Renderer,
 	pool *pgxpool.Pool,
 	mailer *mail.Mailer,
+	events *business.Recorder,
 	notFound gin.HandlerFunc,
 ) {
 	router.GET("/", locales.Home(), homehandler.Home(renderer))
@@ -43,10 +45,10 @@ func routes(
 	router.GET("/ping", health.Ping)
 	router.GET("/readyz", health.Handler(readinessTimeout, health.Check{Name: "database", Probe: pool.Ping}))
 
-	failedAttempts := ratelimit.Middleware(failures.New(pool, "auth"), 10, 15*time.Minute)
+	failedAttempts := ratelimit.Middleware(failures.New(pool, "auth"), 10, 15*time.Minute, events)
 	apiRoutes := router.Group("", api.InternalErrors())
-	apiRoutes.POST("/api/auth/register", failedAttempts, authhandler.Register(pool, locales, mailer))
-	apiRoutes.POST("/api/auth/login", failedAttempts, authhandler.Login(pool, locales))
+	apiRoutes.POST("/api/auth/register", failedAttempts, authhandler.Register(pool, locales, mailer, events))
+	apiRoutes.POST("/api/auth/login", failedAttempts, authhandler.Login(pool, locales, events))
 	apiRoutes.POST("/api/auth/logout", authhandler.Logout(pool))
 
 	signedIn := apiRoutes.Group("", authn.Middleware(session.New(pool), session.CookieName))

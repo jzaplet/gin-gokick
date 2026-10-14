@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -36,6 +37,16 @@ func TestRegisterSendsTheWelcomeMailInTheLanguageOfTheAccount(t *testing.T) {
 	sent := mailbox.Sent()
 	if res.Code != http.StatusCreated || len(sent) != 1 || sent[0].To != "jan@example.com" || strings.Contains(sent[0].HTML, `href="https://gokick.dev/en/app/dashboard"`) == false {
 		t.Errorf("got %d, sent %+v", res.Code, sent)
+	}
+}
+
+func TestRegisterRecordsTheRegistrationAndItsMail(t *testing.T) {
+	engine, _, logs := routertest.WithLogs(t)
+
+	testkit.Serve(engine, testkit.JSONRequest(t, http.MethodPost, "/api/auth/register", jan))
+
+	if events := testkit.RecordedEvents(t, logs); slices.Equal(events, []string{"auth.registered", "mail.sent"}) == false {
+		t.Errorf("events %v", events)
 	}
 }
 

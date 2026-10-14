@@ -13,6 +13,17 @@ import (
 	"github.com/google/uuid"
 )
 
+const countActiveSessions = `-- name: CountActiveSessions :one
+SELECT count(*) FROM sessions WHERE expires_at > now()
+`
+
+func (q *Queries) CountActiveSessions(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countActiveSessions)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countUserSessions = `-- name: CountUserSessions :one
 SELECT count(*) AS total, count(*) FILTER (WHERE token_hash <> $1) AS others
 FROM sessions
