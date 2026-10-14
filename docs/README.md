@@ -64,7 +64,7 @@ go run ./app            # in a second terminal: http://localhost:8020
 | `tools/` | `tsgen` and `i18n` with their shared `codegen`, `codestyle`, the ESLint plugin `codestyle` in `tools/eslint`, and sqlc pinned in its own module |
 | `tests/` | the Vitest tests of the frontend and of the ESLint plugin |
 | `docker/` | the production Dockerfile, the compose of the production Swarm stack and the script that creates the database role |
-| `docs/` | this document, the [first deploy](first-deploy.md) and seven Grafana boards in `grafana/` |
+| `docs/` | this document, the [deployment guide](deployment.md) and seven Grafana boards in `grafana/` |
 
 `views/`, `public/` and `migrations/` are embedded into the binary, and `locale/` is compiled into it. `app/main.go` stays under `app/`, because Go lets only packages under `app/` import `app/internal`.
 
@@ -533,7 +533,7 @@ Each tool is switched on by its ID in the environment and runs without Google Ta
 - The app sits on the stack's network, where it reaches `db`, and on the external network `edge`, where the reverse proxy and the OTLP receiver are.
 - An update starts the new app before it stops the old one, and rolls back when the new one fails its healthcheck. PostgreSQL stops first, because two instances can't share its volume. When a deploy changes both, the new app waits for the restarted database.
 - The passwords arrive as Docker secrets, so `docker service inspect` never shows them. The entrypoint of `app` exports every file of `/run/secrets` as a variable of its name, and the app reads them like any other variable. PostgreSQL and `app-role.sh` read theirs through `POSTGRES_PASSWORD_FILE` and `DB_PASSWORD_FILE`, `monitoring-role.sh` and the exporter through `DB_MONITORING_PASSWORD_FILE` and `DATA_SOURCE_PASS_FILE`.
-- **The exporter of PostgreSQL.** `db` loads `pg_stat_statements`, and `db-exporter` (`postgres_exporter`) reads the statistics of the server as the role `monitoring` with `pg_monitor`: connections, transactions, the cache, locks, deadlocks, sizes and the statements that take the most time, with their text normalized by PostgreSQL and cut to 120 characters. It sits on the stack's network and on `edge`, where the platform scrapes its port 9187; the database itself stays off `edge`. PostgreSQL keeps no utility statements in `pg_stat_statements` (`track_utility=off`), because their text is not normalized: a `CREATE ROLE` or `ALTER ROLE` would carry its password into the statistics and through the exporter into Prometheus. The first start of `db` on an empty volume creates the role and the extension; [first-deploy.md](first-deploy.md) says how to add them to an older database.
+- **The exporter of PostgreSQL.** `db` loads `pg_stat_statements`, and `db-exporter` (`postgres_exporter`) reads the statistics of the server as the role `monitoring` with `pg_monitor`: connections, transactions, the cache, locks, deadlocks, sizes and the statements that take the most time, with their text normalized by PostgreSQL and cut to 120 characters. It sits on the stack's network and on `edge`, where the platform scrapes its port 9187; the database itself stays off `edge`. PostgreSQL keeps no utility statements in `pg_stat_statements` (`track_utility=off`), because their text is not normalized: a `CREATE ROLE` or `ALTER ROLE` would carry its password into the statistics and through the exporter into Prometheus. The first start of `db` on an empty volume creates the role and the extension; [deployment.md](deployment.md) says how to add them to an older database.
 - Everything else comes from repository variables, or the compose fixes it (release mode, JSON logs, the environment `production`, the commit as the release).
 
 **Caddy and Cloudflare.** Cloudflare proxies the domain to Caddy, and Caddy proxies it over `edge` to the app. Caddy passes `CF-Connecting-IP` unchanged. For requests without it, the compose sets `TRUSTED_PROXIES` to the overlay address pool of the Swarm (`10.64.0.0/12`), so gin skips Caddy's address. A Swarm with another `--default-addr-pool` needs that range changed.
@@ -553,9 +553,9 @@ Each tool is switched on by its ID in the environment and runs without Google Ta
 | `traces.json` | The service map, the span metrics of Tempo, outgoing HTTP by host, and the slowest and failed traces |
 
 - **The SLO.** 99.9 % of the probes of `/readyz` pass and 99 % of the requests other than `/readyz` and `/ping` take under 500 ms, both over 30 days. The availability budget is 43.2 minutes of downtime, counted as failed probes times their interval of 30 s; the latency budget is 1 % of the requests. The board shows what is left of each and their burn rate over 1 h and 6 h; a burn rate of 1 spends the budget in exactly 30 days.
-- [first-deploy.md](first-deploy.md) says what the boards need from the platform and how to load them.
+- [deployment.md](deployment.md) says what the boards need from the platform and how to load them.
 
-**The first deploy.** [first-deploy.md](first-deploy.md) walks through it: Cloudflare and Caddy, GlitchTip, the workflows with their variables and secrets, the deploy, backups, Grafana and the checks.
+**Deployment.** [deployment.md](deployment.md) walks through the first deploy (Cloudflare and Caddy, GlitchTip, the workflows with their variables and secrets, backups, Grafana and the checks), the later deploys and a rollback.
 
 ## Tests
 

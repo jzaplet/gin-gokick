@@ -1,4 +1,4 @@
-# First deploy
+# Deployment
 
 This guide deploys a new project from this skeleton to a Docker Swarm: Cloudflare, GlitchTip, GitHub Actions with shared workflows, PostgreSQL in the stack, Prometheus, Loki, Tempo and Grafana. The Swarm with its reverse proxy Caddy, Prometheus, Loki and Tempo with Alloy and Grafana already run, and an infra repository describes them; the guide only adds the project to them. A person can follow it by hand, or Claude reads it and does most steps itself through `gh`, the APIs and the infra repository. Skills with a map of the infrastructure or a password manager speed the work up, but the guide doesn't depend on them.
 
