@@ -11,6 +11,8 @@ Clone the repo and let AI do the work. [AGENTS.md](AGENTS.md) holds the rules th
 
 📖 **[Read the documentation](docs/README.md)** to see what you get on day one: sign-in with sessions, languages, emails, data grids, a strict CSP, GlitchTip, metrics and cookie consent, already wired together and guarded by the tools.
 
+🚀 **[Deployment](docs/deployment.md)** puts it on a Docker Swarm that runs Caddy, GlitchTip, Prometheus, Loki, Tempo and Grafana.
+
 **Live demo**
 
 - 🇺🇸 [gin-gokick.strategio.dev/en](https://gin-gokick.strategio.dev/en)
