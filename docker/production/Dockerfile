@@ -40,7 +40,7 @@ COPY --from=assets /build/public/build ./public/build
 ENV CGO_ENABLED=0 GOOS=linux
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=bind,source=.git,target=/build/.git \
-    go build -trimpath -buildvcs=true -ldflags="-s -w" -o /out/gokick ./app
+    go build -tags nomsgpack -trimpath -buildvcs=true -ldflags="-s -w" -o /out/gokick ./app
 
 FROM alpine:3.24
 

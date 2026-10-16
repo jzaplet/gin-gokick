@@ -51,7 +51,7 @@ var enUS = Dictionary{
 
 	"home.feature.go_gin.title": "Go and Gin",
 
-	"home.feature.go_gin.text": "One binary serves the templates and the frontend build.",
+	"home.feature.go_gin.text": "One binary of 27 MB serves the templates and the frontend build.",
 
 	"home.feature.env.title": "Config from .env",
 

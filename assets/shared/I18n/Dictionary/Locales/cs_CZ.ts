@@ -97,7 +97,7 @@ export const dictionary: Dictionary = {
     'home.feature.forms.title': 'Formuláře',
     'home.feature.gate.text': 'Jeden blok spustí před commitem lint, typy i\u00a0testy jako CI.',
     'home.feature.gate.title': 'Brána před commitem',
-    'home.feature.go_gin.text': 'Gin obslouží web z\u00a0jedné binárky i\u00a0se šablonami a\u00a0frontendem.',
+    'home.feature.go_gin.text': 'Gin obslouží web z\u00a0jedné binárky o\u00a027\u00a0MB i\u00a0se šablonami a\u00a0frontendem.',
     'home.feature.go_gin.title': 'Go a\u00a0Gin',
     'home.feature.go_types.text': 'tsgen píše typy i\u00a0guardy, změnu API odhalí kompilace.',
     'home.feature.go_types.title': 'Typy a\u00a0guardy z\u00a0Go',

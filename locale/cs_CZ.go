@@ -51,7 +51,7 @@ var csCZ = Dictionary{
 
 	"home.feature.go_gin.title": "Go a\u00a0Gin",
 
-	"home.feature.go_gin.text": "Gin obslouží web z\u00a0jedné binárky i\u00a0se šablonami a\u00a0frontendem.",
+	"home.feature.go_gin.text": "Gin obslouží web z\u00a0jedné binárky o\u00a027\u00a0MB i\u00a0se šablonami a\u00a0frontendem.",
 
 	"home.feature.env.title": "Konfigurace z\u00a0.env",
 
