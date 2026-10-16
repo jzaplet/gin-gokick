@@ -69,6 +69,10 @@ export type MessageParams = {
     'home.description': null;
     'home.feature.agents.text': null;
     'home.feature.agents.title': null;
+    'home.feature.boards.text': null;
+    'home.feature.boards.title': null;
+    'home.feature.business.text': null;
+    'home.feature.business.title': null;
     'home.feature.components.text': null;
     'home.feature.components.title': null;
     'home.feature.consent.text': null;
@@ -121,6 +125,8 @@ export type MessageParams = {
     'home.feature.postgres.title': null;
     'home.feature.push_hook.text': null;
     'home.feature.push_hook.title': null;
+    'home.feature.queries.text': null;
+    'home.feature.queries.title': null;
     'home.feature.routes.text': null;
     'home.feature.routes.title': null;
     'home.feature.sessions.text': null;
@@ -139,6 +145,8 @@ export type MessageParams = {
     'home.feature.titles.title': null;
     'home.feature.toasts.text': null;
     'home.feature.toasts.title': null;
+    'home.feature.traces.text': null;
+    'home.feature.traces.title': null;
     'home.feature.tracked_events.text': null;
     'home.feature.tracked_events.title': null;
     'home.feature.translations.text': null;

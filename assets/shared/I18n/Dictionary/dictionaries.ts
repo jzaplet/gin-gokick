@@ -3,6 +3,6 @@
 import type { DictionarySource } from '@/shared/I18n/Dictionary/types/DictionarySource';
 
 export const dictionaries: Readonly<Record<string, DictionarySource>> = {
-    cs_CZ: { version: 'ae11953025af4201', name: 'Čeština', load: async () => (await import('@/shared/I18n/Dictionary/Locales/cs_CZ')).dictionary },
-    en_US: { version: 'b1fd2568daef97c4', name: 'English', load: async () => (await import('@/shared/I18n/Dictionary/Locales/en_US')).dictionary },
+    cs_CZ: { version: '11976dd419623ef8', name: 'Čeština', load: async () => (await import('@/shared/I18n/Dictionary/Locales/cs_CZ')).dictionary },
+    en_US: { version: '57114c50df648ea5', name: 'English', load: async () => (await import('@/shared/I18n/Dictionary/Locales/en_US')).dictionary },
 };
