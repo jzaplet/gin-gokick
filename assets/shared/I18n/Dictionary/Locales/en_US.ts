@@ -93,7 +93,7 @@ export const dictionary: Dictionary = {
     'home.feature.forms.title': 'Forms',
     'home.feature.gate.text': 'One block runs the lint, types and tests of CI before a commit.',
     'home.feature.gate.title': 'Pre-commit gate',
-    'home.feature.go_gin.text': 'One binary serves the templates and the frontend build.',
+    'home.feature.go_gin.text': 'One binary of 27 MB serves the templates and the frontend build.',
     'home.feature.go_gin.title': 'Go and Gin',
     'home.feature.go_types.text': 'tsgen writes types and guards, so API changes fail to compile.',
     'home.feature.go_types.title': 'Go types and guards',
