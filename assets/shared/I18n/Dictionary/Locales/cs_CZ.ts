@@ -164,7 +164,7 @@ export const dictionary: Dictionary = {
     'home.group.measurement': 'Měření a\u00a0souhlas',
     'home.group.security': 'Bezpečnost',
     'home.group.start': 'Rozjetí',
-    'home.group.telemetry': 'OpenTelemetry a\u00a0GlitchTip',
+    'home.group.telemetry': 'Observabilita',
     'home.group.templates': 'Šablony v\u00a0Go',
     'home.heading_after': '',
     'home.heading_before': 'Lehká',

@@ -164,7 +164,7 @@ export const dictionary: Dictionary = {
     'home.group.measurement': 'Analytics and consent',
     'home.group.security': 'Security',
     'home.group.start': 'Getting started',
-    'home.group.telemetry': 'OpenTelemetry and GlitchTip',
+    'home.group.telemetry': 'Observability',
     'home.group.templates': 'Go templates',
     'home.heading_after': 'boilerplate',
     'home.heading_before': 'Lightweight',

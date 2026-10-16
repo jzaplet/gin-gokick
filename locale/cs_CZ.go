@@ -45,7 +45,7 @@ var csCZ = Dictionary{
 
 	"home.group.security": "Bezpečnost",
 
-	"home.group.telemetry": "OpenTelemetry a\u00a0GlitchTip",
+	"home.group.telemetry": "Observabilita",
 
 	"home.group.measurement": "Měření a\u00a0souhlas",
 

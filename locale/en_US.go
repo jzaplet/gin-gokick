@@ -45,7 +45,7 @@ var enUS = Dictionary{
 
 	"home.group.security": "Security",
 
-	"home.group.telemetry": "OpenTelemetry and GlitchTip",
+	"home.group.telemetry": "Observability",
 
 	"home.group.measurement": "Analytics and consent",
 
