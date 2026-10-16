@@ -45,7 +45,7 @@ var csCZ = Dictionary{
 
 	"home.group.security": "Bezpečnost",
 
-	"home.group.telemetry": "GlitchTip a\u00a0telemetrie",
+	"home.group.telemetry": "OpenTelemetry a\u00a0GlitchTip",
 
 	"home.group.measurement": "Měření a\u00a0souhlas",
 
@@ -84,6 +84,10 @@ var csCZ = Dictionary{
 	"home.feature.db_tests.title": "Testy s\u00a0databází",
 
 	"home.feature.db_tests.text": "Každý test dostane prázdné schéma s\u00a0migracemi, v\u00a0CI i\u00a0lokálně.",
+
+	"home.feature.queries.title": "Dotazy podle funkce",
+
+	"home.feature.queries.text": "Span i\u00a0metrika pojmenují dotaz podle funkce aplikace, která ho spustila.",
 
 	"home.feature.docker.title": "Docker image",
 
@@ -185,13 +189,25 @@ var csCZ = Dictionary{
 
 	"home.feature.errors.text": "Spojí chybu z\u00a0prohlížeče s\u00a0backendem, release je SHA commitu.",
 
-	"home.feature.metrics.title": "Prometheus a\u00a0Grafana",
+	"home.feature.traces.title": "Jedno trace ID",
 
-	"home.feature.metrics.text": "Hotový dashboard ukáže požadavky, doby odpovědí i\u00a0runtime Go.",
+	"home.feature.traces.text": "Nese ho log, span, GlitchTip i\u00a0X-Trace-Id, i\u00a0s\u00a0vypnutou telemetrií.",
 
-	"home.feature.logs.title": "Logy v\u00a0JSON",
+	"home.feature.metrics.title": "Metriky přes OTLP",
 
-	"home.feature.logs.text": "slog zapíše trace_id i\u00a0user_id, nikdy e-mail ani jméno.",
+	"home.feature.metrics.text": "Požadavky, dotazy, pool i\u00a0runtime Go odcházejí spolu s\u00a0trace.",
+
+	"home.feature.logs.title": "Logy v\u00a0JSON do Loki",
+
+	"home.feature.logs.text": "trace_id i\u00a0user_id, nikdy e-mail, jdou na stdout a\u00a0odtud do Loki.",
+
+	"home.feature.boards.title": "Sedm boardů v\u00a0Grafaně",
+
+	"home.feature.boards.text": "Od dostupnosti a\u00a0SLO po pomalé dotazy a\u00a0jejich trace.",
+
+	"home.feature.business.title": "Byznysové události",
+
+	"home.feature.business.text": "Jedno volání zapíše log, metriku i\u00a0událost spanu, bez osobních údajů.",
 
 	"home.feature.cookie_banner.title": "Cookie lišta",
 

@@ -45,7 +45,7 @@ var enUS = Dictionary{
 
 	"home.group.security": "Security",
 
-	"home.group.telemetry": "GlitchTip and telemetry",
+	"home.group.telemetry": "OpenTelemetry and GlitchTip",
 
 	"home.group.measurement": "Analytics and consent",
 
@@ -84,6 +84,10 @@ var enUS = Dictionary{
 	"home.feature.db_tests.title": "Tests with a database",
 
 	"home.feature.db_tests.text": "Each test gets an empty migrated schema, in CI and locally.",
+
+	"home.feature.queries.title": "Queries by function",
+
+	"home.feature.queries.text": "Spans and metrics name each query by the function of the app that ran it.",
 
 	"home.feature.docker.title": "Docker image",
 
@@ -185,13 +189,25 @@ var enUS = Dictionary{
 
 	"home.feature.errors.text": "Links browser errors to the backend, releases are commit SHAs.",
 
-	"home.feature.metrics.title": "Prometheus metrics",
+	"home.feature.traces.title": "One trace ID",
 
-	"home.feature.metrics.text": "Prometheus gets the metrics and Grafana a ready dashboard.",
+	"home.feature.traces.text": "The log, the span, GlitchTip and X-Trace-Id carry it, even with telemetry off.",
 
-	"home.feature.logs.title": "JSON logs",
+	"home.feature.metrics.title": "Metrics over OTLP",
 
-	"home.feature.logs.text": "slog writes trace_id and user_id, never an email or a name.",
+	"home.feature.metrics.text": "Requests, queries, the pool and the Go runtime leave with the traces.",
+
+	"home.feature.logs.title": "JSON logs in Loki",
+
+	"home.feature.logs.text": "trace_id and user_id, never an email, go to stdout and on to Loki.",
+
+	"home.feature.boards.title": "Seven Grafana boards",
+
+	"home.feature.boards.text": "From availability and the SLO to slow queries and their traces.",
+
+	"home.feature.business.title": "Business events",
+
+	"home.feature.business.text": "One call writes the log, the count and the span event, without personal data.",
 
 	"home.feature.cookie_banner.title": "Cookie banner",
 
