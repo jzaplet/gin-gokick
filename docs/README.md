@@ -527,6 +527,7 @@ Each tool is switched on by its ID in the environment and runs without Google Ta
 **The Docker image.** `docker/production/Dockerfile` builds the frontend in `node:24-alpine` and the binary in `golang:1.26-alpine`, and runs it on Alpine as the user `gokick` (uid 1000) on port 8020.
 - The build needs the `.git` folder, a shallow clone is enough, because the binary carries the commit as its release.
 - Its `assets` stage copies only what the frontend build needs.
+- The binary builds with the tag `nomsgpack`, which leaves out the MessagePack codec of gin. The app reads and writes only JSON, and the binary is 6 MB (18 %) smaller.
 - The healthcheck asks `/readyz` every 30 s.
 
 **Docker Swarm.** `docker/production/compose.yaml` is the production stack: the app, PostgreSQL 18 and its exporter on the nodes whose label `role` the deploy passes as `ROLE`. Shared GitHub Actions workflows build the image of every commit and deploy the stack with the image of the chosen commit.
