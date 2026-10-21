@@ -109,8 +109,13 @@ func (r *Root) send(c *gin.Context, name, etag string) error {
 	if strings.HasPrefix(name, r.immutablePrefix) {
 		cacheControl = immutable
 
-		if strings.HasPrefix(mime.TypeByExtension(path.Ext(name)), "image/") {
+		kind := mime.TypeByExtension(path.Ext(name))
+		if strings.HasPrefix(kind, "image/") || strings.HasPrefix(kind, "font/") {
 			c.Header("Cross-Origin-Resource-Policy", "cross-origin")
+		}
+
+		if strings.HasPrefix(kind, "font/") {
+			c.Header("Access-Control-Allow-Origin", "*")
 		}
 	}
 

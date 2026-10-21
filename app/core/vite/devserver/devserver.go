@@ -62,8 +62,13 @@ func (s *Server) serve(c *gin.Context) {
 		return
 	}
 
-	if strings.HasPrefix(mime.TypeByExtension(path.Ext(c.Param("filepath"))), "image/") {
+	kind := mime.TypeByExtension(path.Ext(c.Param("filepath")))
+	if strings.HasPrefix(kind, "image/") || strings.HasPrefix(kind, "font/") {
 		c.Header("Cross-Origin-Resource-Policy", "cross-origin")
+	}
+
+	if strings.HasPrefix(kind, "font/") {
+		c.Header("Access-Control-Allow-Origin", "*")
 	}
 
 	s.proxy.ServeHTTP(c.Writer, c.Request.WithContext(context.WithoutCancel(c.Request.Context())))

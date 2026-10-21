@@ -44,20 +44,28 @@ func TestTheDevProxyServesOnlyLocalClients(t *testing.T) {
 	}
 }
 
-func TestOnlyImagesOfTheDevServerLoadFromOtherOrigins(t *testing.T) {
+func TestOnlyImagesAndFontsOfTheDevServerLoadFromOtherOrigins(t *testing.T) {
 	devServer := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	t.Cleanup(devServer.Close)
 	app := httptest.NewServer(serve(newServer(t, devServer.URL)))
 	t.Cleanup(app.Close)
 
-	for path, want := range map[string]string{
-		"/build/assets/img/mail/mark.png": "cross-origin",
+	for path, want := range map[string]struct {
+		policy string
 
-		"/build/assets/app.ts": "same-origin",
+		cors []string
+	}{
+		"/build/assets/img/mail/mark.png": {"cross-origin", nil},
+
+		"/build/assets/fonts/plus-jakarta-sans.woff2": {"cross-origin", []string{"*"}},
+
+		"/build/assets/app.ts": {"same-origin", nil},
 	} {
 		res := get(t, app.URL+path)
-		if got := res.header.Values("Cross-Origin-Resource-Policy"); res.code != http.StatusOK || slices.Equal(got, []string{want}) == false {
-			t.Errorf("%s: %d, policy %q", path, res.code, got)
+		policy, cors := res.header.Values("Cross-Origin-Resource-Policy"), res.header.Values("Access-Control-Allow-Origin")
+
+		if res.code != http.StatusOK || slices.Equal(policy, []string{want.policy}) == false || slices.Equal(cors, want.cors) == false {
+			t.Errorf("%s: %d, policy %q, cors %q", path, res.code, policy, cors)
 		}
 	}
 }

@@ -19,6 +19,8 @@ var public = fstest.MapFS{
 
 	"build/assets/mark-1.png": {Data: []byte("png")},
 
+	"build/assets/font-1.woff2": {Data: []byte("woff2")},
+
 	"build/manifest.json": {Data: []byte("{}")},
 
 	"images/logo.svg": {Data: []byte("<svg/>")},
@@ -70,19 +72,23 @@ func TestHashedFilesAreImmutable(t *testing.T) {
 	}
 }
 
-func TestOnlyHashedImagesLoadFromOtherOrigins(t *testing.T) {
+func TestOnlyHashedImagesAndFontsLoadFromOtherOrigins(t *testing.T) {
 	engine := serve(newRoot(t))
 
-	for path, want := range map[string]string{
-		"/build/assets/mark-1.png": "cross-origin",
+	for path, want := range map[string]struct{ policy, cors string }{
+		"/build/assets/mark-1.png": {"cross-origin", ""},
 
-		"/build/assets/app-1.js": "",
+		"/build/assets/font-1.woff2": {"cross-origin", "*"},
 
-		"/images/logo.svg": "",
+		"/build/assets/app-1.js": {"", ""},
+
+		"/images/logo.svg": {"", ""},
 	} {
 		res := testkit.Serve(engine, testkit.Request(t, http.MethodGet, path))
-		if got := res.Header().Get("Cross-Origin-Resource-Policy"); res.Code != http.StatusOK || got != want {
-			t.Errorf("%s: %d, policy %q", path, res.Code, got)
+		policy, cors := res.Header().Get("Cross-Origin-Resource-Policy"), res.Header().Get("Access-Control-Allow-Origin")
+
+		if res.Code != http.StatusOK || policy != want.policy || cors != want.cors {
+			t.Errorf("%s: %d, policy %q, cors %q", path, res.Code, policy, cors)
 		}
 	}
 }
